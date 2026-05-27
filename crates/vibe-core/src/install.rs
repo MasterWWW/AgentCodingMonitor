@@ -2,6 +2,8 @@ use crate::paths::{
     self, claude_settings_path, codex_config_path, codex_hooks_path, cursor_hooks_path,
     ensure_parent, hook_binary_path, hook_command_for_install,
 };
+#[cfg(windows)]
+use crate::paths::hook_cmd_path;
 use crate::store::SessionStore;
 use crate::types::{DoctorReport, InstallHooksResult, VibeSource};
 use anyhow::{Context, Result};
