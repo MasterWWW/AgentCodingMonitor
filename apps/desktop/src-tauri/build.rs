@@ -41,7 +41,14 @@ fn copy_vibe_hook_sidecar() {
         return;
     }
 
-    let sidecar = out_dir.join(format!("vibe-hook-{target}"));
+    // Tauri externalBin 期望 `vibe-hook-{target}{ext}`，Windows 必须保留 `.exe`，
+    // 否则 `tauri build` 在 Windows 上会报 `resource path '...\vibe-hook-x86_64-pc-windows-msvc.exe' doesn't exist`。
+    let sidecar_name = if target.contains("windows") {
+        format!("vibe-hook-{target}.exe")
+    } else {
+        format!("vibe-hook-{target}")
+    };
+    let sidecar = out_dir.join(sidecar_name);
     if fs::copy(&built, &sidecar).is_ok() {
         println!("cargo:rerun-if-changed={}", built.display());
         let _ = fs::copy(&built, out_dir.join(name));

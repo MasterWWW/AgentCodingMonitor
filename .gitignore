@@ -11,5 +11,5 @@ apps/desktop/src-tauri/gen/
 # Tracked release sidecars (e.g. vibe-hook, vibe-hook-aarch64-apple-darwin)
 # remain in git because gitignore does not untrack existing files.
 apps/desktop/src-tauri/binaries/vibe-hook-*-unknown-linux-gnu
-apps/desktop/src-tauri/binaries/vibe-hook-*-pc-windows-msvc
+apps/desktop/src-tauri/binaries/vibe-hook-*-pc-windows-msvc.exe
 apps/desktop/src-tauri/binaries/vibe-hook-x86_64-apple-darwin
