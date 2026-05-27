@@ -1,6 +1,11 @@
 use crate::paths::state_file;
-use crate::types::{StatusSnapshot, VibePhase, VibeSource};
+use crate::types::{Session, StatusSnapshot, VibePhase, VibeSource};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Max gap between duplicate hook reports for the same upstream `session_id`.
+const NEAR_DUPLICATE_SECS: i64 = 2;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
@@ -75,12 +80,12 @@ pub fn write_presentation(mode: HudPresentation) -> anyhow::Result<()> {
 
 /// HUD display: latest in-progress session, else latest session by activity, else health `last_seen`, else default.
 pub fn pick_display_source(snap: &StatusSnapshot, default: VibeSource) -> VibeSource {
-    if let Some(source) = newest_session_matching(snap, |p| {
+    if let Some(source) = newest_session_matching(snap, default, |p| {
         matches!(p, VibePhase::Active | VibePhase::WaitingUser)
     }) {
         return source;
     }
-    if let Some(source) = newest_session_matching(snap, |_| true) {
+    if let Some(source) = newest_session_matching(snap, default, |_| true) {
         return source;
     }
     if let Some(source) = newest_source_by_health(snap) {
@@ -89,15 +94,83 @@ pub fn pick_display_source(snap: &StatusSnapshot, default: VibeSource) -> VibeSo
     default
 }
 
+fn source_display_priority(source: VibeSource, default: VibeSource) -> u8 {
+    if source == default {
+        return 0;
+    }
+    match source {
+        VibeSource::Cursor => 1,
+        VibeSource::ClaudeCode => 2,
+        VibeSource::Codex => 3,
+    }
+}
+
+fn is_near_duplicate_group(sessions: &[&Session]) -> bool {
+    if sessions.len() < 2 {
+        return false;
+    }
+    let mut min = sessions[0].last_activity_at;
+    let mut max = sessions[0].last_activity_at;
+    for s in sessions.iter().skip(1) {
+        min = min.min(s.last_activity_at);
+        max = max.max(s.last_activity_at);
+    }
+    (max - min).num_seconds() <= NEAR_DUPLICATE_SECS
+}
+
+fn pick_source_from_session_group(sessions: &[&Session], default: VibeSource) -> VibeSource {
+    debug_assert!(!sessions.is_empty());
+    if is_near_duplicate_group(sessions) {
+        sessions
+            .iter()
+            .min_by_key(|s| {
+                (
+                    source_display_priority(s.source, default),
+                    std::cmp::Reverse(s.last_activity_at),
+                )
+            })
+            .map(|s| s.source)
+            .unwrap()
+    } else {
+        sessions
+            .iter()
+            .max_by_key(|s| s.last_activity_at)
+            .map(|s| s.source)
+            .unwrap()
+    }
+}
+
 fn newest_session_matching(
     snap: &StatusSnapshot,
+    default: VibeSource,
     pred: impl Fn(VibePhase) -> bool,
 ) -> Option<VibeSource> {
-    snap.sessions
-        .iter()
-        .filter(|s| pred(s.phase))
-        .max_by_key(|s| s.last_activity_at)
-        .map(|s| s.source)
+    let candidates: Vec<&Session> = snap.sessions.iter().filter(|s| pred(s.phase)).collect();
+    if candidates.is_empty() {
+        return None;
+    }
+
+    let mut groups: HashMap<&str, Vec<&Session>> = HashMap::new();
+    for s in candidates {
+        groups
+            .entry(s.session_id.as_str())
+            .or_default()
+            .push(s);
+    }
+
+    let mut best: Option<(VibeSource, DateTime<Utc>)> = None;
+    for sessions in groups.values() {
+        let source = pick_source_from_session_group(sessions, default);
+        let at = sessions
+            .iter()
+            .map(|s| s.last_activity_at)
+            .max()
+            .unwrap();
+        if best.as_ref().is_none_or(|(_, t)| at > *t) {
+            best = Some((source, at));
+        }
+    }
+    best.map(|(s, _)| s)
 }
 
 fn newest_source_by_health(snap: &StatusSnapshot) -> Option<VibeSource> {
@@ -210,6 +283,76 @@ mod tests {
             lite_mode: false,
             sources: Default::default(),
             sessions: vec![],
+        };
+        assert_eq!(
+            pick_display_source(&snap, VibeSource::ClaudeCode),
+            VibeSource::ClaudeCode
+        );
+    }
+
+    #[test]
+    fn pick_duplicate_session_id_prefers_cursor_over_claude() {
+        let now = Utc::now();
+        let snap = StatusSnapshot {
+            daemon_ok: true,
+            port: 1,
+            lite_mode: false,
+            sources: Default::default(),
+            sessions: vec![
+                crate::types::Session {
+                    source: VibeSource::Cursor,
+                    session_id: "shared".into(),
+                    cwd: None,
+                    task_title: Some("same task".into()),
+                    last_tool: Some("Read".into()),
+                    last_activity_at: now,
+                    phase: VibePhase::Active,
+                },
+                crate::types::Session {
+                    source: VibeSource::ClaudeCode,
+                    session_id: "shared".into(),
+                    cwd: None,
+                    task_title: Some("same task".into()),
+                    last_tool: Some("Read".into()),
+                    last_activity_at: now + chrono::Duration::microseconds(50),
+                    phase: VibePhase::Active,
+                },
+            ],
+        };
+        assert_eq!(
+            pick_display_source(&snap, VibeSource::Cursor),
+            VibeSource::Cursor
+        );
+    }
+
+    #[test]
+    fn pick_duplicate_session_id_prefers_default_when_set() {
+        let now = Utc::now();
+        let snap = StatusSnapshot {
+            daemon_ok: true,
+            port: 1,
+            lite_mode: false,
+            sources: Default::default(),
+            sessions: vec![
+                crate::types::Session {
+                    source: VibeSource::Cursor,
+                    session_id: "shared".into(),
+                    cwd: None,
+                    task_title: None,
+                    last_tool: None,
+                    last_activity_at: now,
+                    phase: VibePhase::Active,
+                },
+                crate::types::Session {
+                    source: VibeSource::ClaudeCode,
+                    session_id: "shared".into(),
+                    cwd: None,
+                    task_title: None,
+                    last_tool: None,
+                    last_activity_at: now + chrono::Duration::milliseconds(10),
+                    phase: VibePhase::Active,
+                },
+            ],
         };
         assert_eq!(
             pick_display_source(&snap, VibeSource::ClaudeCode),

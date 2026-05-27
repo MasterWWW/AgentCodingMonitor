@@ -2,10 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMainWindowAutoSize } from "./useMainWindowAutoSize";
 import { pickHudSource } from "./pickHudSource";
 import { invoke } from "@tauri-apps/api/core";
-import {
-  getCurrentWebviewWindow,
-  WebviewWindow,
-} from "@tauri-apps/api/webviewWindow";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { StatusSnapshot, VibePhase, VibeSource } from "./types";
 import { SOURCE_LABELS } from "./types";
 
@@ -43,11 +40,6 @@ function WizardApp() {
         await invoke("finish_first_run");
         const w = getCurrentWebviewWindow();
         await w.close();
-        const main = await WebviewWindow.getByLabel("main");
-        if (main) {
-          await main.show();
-          await main.setFocus();
-        }
       }
     } finally {
       setBusy(false);
@@ -173,20 +165,42 @@ function MainApp() {
 }
 
 export default function App() {
-  const [wizard, setWizard] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<"loading" | "wizard" | "hud">("loading");
 
   useEffect(() => {
-    (async () => {
-      const label = getCurrentWebviewWindow().label;
-      if (label === "wizard") {
-        setWizard(true);
-        return;
-      }
-      const needs = await invoke<boolean>("needs_first_run");
-      setWizard(needs);
-    })();
+    const win = getCurrentWebviewWindow();
+    const label = win.label;
+
+    if (label === "wizard") {
+      setMode("wizard");
+      return;
+    }
+
+    // HUD 浮窗（main）只展示 MainApp，向导仅在 wizard 窗口
+    setMode("hud");
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    win
+      .listen("first-run-complete", () => {
+        if (!disposed) {
+          setMode("hud");
+          void win.show();
+          void win.setFocus();
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
-  if (wizard === null) return null;
-  return wizard ? <WizardApp /> : <MainApp />;
+  if (mode === "loading") return null;
+  if (mode === "wizard") return <WizardApp />;
+  return <MainApp />;
 }

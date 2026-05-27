@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, State,
+    AppHandle, Emitter, Manager, State,
 };
 use vibe_core::{
     install::{doctor, install_hooks, sync_hook_health_from_disk},
@@ -128,11 +128,19 @@ async fn set_lite_mode(enabled: bool, state: State<'_, AppState>) -> Result<(), 
 }
 
 #[tauri::command]
-fn finish_first_run() -> Result<(), String> {
+fn finish_first_run(app: AppHandle) -> Result<(), String> {
     paths::ensure_parent(&first_run_marker().map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     std::fs::write(first_run_marker().map_err(|e| e.to_string())?, "ok")
         .map_err(|e| e.to_string())?;
+
+    let presentation = state::load_presentation();
+    apply_presentation(&app, presentation);
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.emit("first-run-complete", ());
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
     Ok(())
 }
 
@@ -681,6 +689,9 @@ pub fn run() {
 
             let presentation = state::load_presentation();
             if needs_first_run() {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.hide();
+                }
                 show_wizard(app.handle());
             } else {
                 apply_presentation(app.handle(), presentation);
