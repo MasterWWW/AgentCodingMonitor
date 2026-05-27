@@ -20,7 +20,7 @@ flowchart LR
 
 - Events map to phases: `active`, `idle` (30s timeout), `waiting_user`, `stopped`, `unknown`.
 - Sessions keyed by `source:session_id`.
-- Lite mode watches `~/.cursor/projects/**/agent-transcripts/**/*.jsonl` and `~/.claude/projects/**/*.jsonl`.
+- Lite mode recursively watches all three transcript trees (any `*.jsonl` under each root): `~/.cursor/projects`, `~/.claude/projects`, `~/.codex/projects` — none skipped.
 
 ## Desktop presentation (HUD)
 

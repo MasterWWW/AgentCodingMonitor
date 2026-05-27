@@ -34,19 +34,24 @@ pub fn install_hooks(hook_binary_src: Option<&Path>, search_hints: &[PathBuf]) -
         }
     };
 
+    let mut hooks_ok = true;
+
     if let Err(e) = install_cursor_hooks(&cmd) {
+        hooks_ok = false;
         messages.push(format!("Cursor hooks: failed ({e})"));
     } else {
         messages.push("Cursor hooks: installed".to_string());
     }
 
     if let Err(e) = install_claude_hooks(&cmd) {
+        hooks_ok = false;
         messages.push(format!("Claude Code hooks: failed ({e})"));
     } else {
         messages.push("Claude Code hooks: installed".to_string());
     }
 
     if let Err(e) = install_codex_hooks(&cmd) {
+        hooks_ok = false;
         messages.push(format!("Codex hooks: failed ({e})"));
     } else {
         messages.push("Codex hooks: installed".to_string());
@@ -62,10 +67,12 @@ pub fn install_hooks(hook_binary_src: Option<&Path>, search_hints: &[PathBuf]) -
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_default();
 
-    messages.push("请完全退出并重新打开 Cursor，hook 才会生效".to_string());
+    messages.push(
+        "请完全退出并重新打开 Cursor、Claude Code、Codex 后 hook 才会生效".to_string(),
+    );
 
     InstallHooksResult {
-        ok: true,
+        ok: hooks_ok,
         hook_path,
         messages,
     }

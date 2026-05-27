@@ -12,8 +12,9 @@
 ## HUD 展示规则（单工具）
 
 1. 存在 `active` 或 `waiting_user` 的 session 时，取 `last_activity_at` 最新者。
-2. 否则展示 `state.json` 中的 `default_source`（默认 `cursor`）。
-3. 托盘菜单可切换默认工具（「设为默认 · …」）。
+2. 否则取任意 phase 下 `last_activity_at` 最新的 session（含 `stopped` / `idle`），任务结束后仍显示最近一次活跃的工具。
+3. 再无 session 时按各来源 `last_seen`；最后才用 `default_source`。
+4. 托盘菜单可切换默认工具（「设为默认 · …」），仅在上面的回退链末尾生效。
 
 ## 窗口尺寸
 

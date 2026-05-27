@@ -25,6 +25,7 @@ impl RunningServer {
 
 pub async fn start(
     hook_source_path: Option<PathBuf>,
+    hook_search_hints: Vec<PathBuf>,
     lite_enabled: bool,
 ) -> Result<RunningServer> {
     let port = bind_port().await?;
@@ -37,6 +38,7 @@ pub async fn start(
     let state = AppState {
         store: store.clone(),
         hook_source_path,
+        hook_search_hints,
     };
     let app = router(state);
     let addr = SocketAddr::from(([127, 0, 0, 1], port));

@@ -128,6 +128,26 @@ pub fn claude_transcripts_root() -> Option<PathBuf> {
     directories::BaseDirs::new().map(|b| b.home_dir().join(".claude").join("projects"))
 }
 
+pub fn codex_transcripts_root() -> Option<PathBuf> {
+    directories::BaseDirs::new().map(|b| b.home_dir().join(".codex").join("projects"))
+}
+
+/// All lite-mode watch roots: Cursor, Claude Code, Codex — none skipped.
+pub fn lite_watch_roots() -> Vec<(PathBuf, crate::types::VibeSource)> {
+    use crate::types::VibeSource;
+    let mut roots = Vec::new();
+    if let Some(p) = cursor_transcripts_root() {
+        roots.push((p, VibeSource::Cursor));
+    }
+    if let Some(p) = claude_transcripts_root() {
+        roots.push((p, VibeSource::ClaudeCode));
+    }
+    if let Some(p) = codex_transcripts_root() {
+        roots.push((p, VibeSource::Codex));
+    }
+    roots
+}
+
 pub fn write_port(port: u16) -> Result<()> {
     std::fs::write(port_file()?, port.to_string())?;
     Ok(())

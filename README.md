@@ -8,7 +8,7 @@
 ## 功能特性
 
 - **首次运行向导**：点击「启用监听」后，自动安装 `vibe-hook` 并合并三端 hook 配置（带 `vibe-monitor` 标记，可安全重复执行）。
-- **可选轻量模式**：监视 `~/.cursor/projects/**/agent-transcripts/**/*.jsonl` 与 `~/.claude/projects/**/*.jsonl`；在 hook 未触发时仍能感知活动（macOS 默认开启，其他平台默认关闭）。
+- **可选轻量模式**：递归监视 `~/.cursor/projects`、`~/.claude/projects`、`~/.codex/projects` 下全部 `*.jsonl`（三端不跳过）；hook 未触发时仍能感知活动（macOS 默认开启，其他平台默认关闭）。
 - **实时 HUD**：通过 SSE（`/api/stream`）刷新相位与来源；多个进行中的会话时，展示**最近活跃**的来源。
 - **macOS 展示模式**：置顶透明浮窗（`float`，默认）或仅托盘（`menubar`）；托盘菜单可切换模式、运行诊断、重新安装 hook。
 - **本地 HTTP API**：嵌入于桌面进程的 `vibe-core`（Axum），默认端口 **17392**；若被占用则依次尝试最多 5 个连续端口，当前端口写入数据目录下的 `port` 文件。

@@ -17,6 +17,7 @@ use tower_http::cors::CorsLayer;
 pub struct AppState {
     pub store: SessionStore,
     pub hook_source_path: Option<std::path::PathBuf>,
+    pub hook_search_hints: Vec<std::path::PathBuf>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -49,7 +50,10 @@ async fn events(
 async fn install_hooks_handler(
     State(state): State<Arc<AppState>>,
 ) -> Json<InstallHooksResult> {
-    let result = install_hooks(state.hook_source_path.as_deref(), &[]);
+    let result = install_hooks(
+        state.hook_source_path.as_deref(),
+        &state.hook_search_hints,
+    );
     if result.ok {
         sync_hook_health_from_disk(&state.store).await;
     }

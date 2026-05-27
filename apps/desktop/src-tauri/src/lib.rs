@@ -24,6 +24,7 @@ struct AppRuntime {
 struct AppState {
     runtime: Mutex<AppRuntime>,
     hook_src: Mutex<Option<PathBuf>>,
+    hook_search_hints: Mutex<Vec<PathBuf>>,
 }
 
 fn hook_search_hints(app: &AppHandle) -> Vec<PathBuf> {
@@ -319,10 +320,11 @@ fn status_line(snap: &StatusSnapshot, source: VibeSource) -> String {
 fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu<tauri::Wry>> {
     let presentation = state::load_presentation();
     let default_src = state::load_default_source();
+    let display_src = state::pick_display_source(snap, default_src);
     let current_status = MenuItem::with_id(
         app,
         "current_status",
-        format!("当前 · {}", status_line(snap, default_src)),
+        format!("当前 · {}", status_line(snap, display_src)),
         false,
         None::<&str>,
     )?;
@@ -656,9 +658,11 @@ pub fn run() {
     builder
         .setup(|app| {
             let hook_src = hook_binary_src(app.handle());
+            let hook_hints = hook_search_hints(app.handle());
             let lite = vibe_core::state::load_lite_mode();
-            let server = tauri::async_runtime::block_on(start(hook_src.clone(), lite))
-                .map_err(|e| format!("failed to start server: {e}"))?;
+            let server =
+                tauri::async_runtime::block_on(start(hook_src.clone(), hook_hints.clone(), lite))
+                    .map_err(|e| format!("failed to start server: {e}"))?;
 
             let port = server.port;
             app.manage(AppState {
@@ -667,6 +671,7 @@ pub fn run() {
                     port,
                 }),
                 hook_src: Mutex::new(hook_src),
+                hook_search_hints: Mutex::new(hook_hints),
             });
 
             apply_macos_app_policy(app.handle());

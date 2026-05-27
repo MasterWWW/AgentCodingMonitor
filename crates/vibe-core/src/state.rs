@@ -73,21 +73,47 @@ pub fn write_presentation(mode: HudPresentation) -> anyhow::Result<()> {
     write_state(&s)
 }
 
-/// HUD display: latest active/waiting_user session, else default source.
+/// HUD display: latest in-progress session, else latest session by activity, else health `last_seen`, else default.
 pub fn pick_display_source(snap: &StatusSnapshot, default: VibeSource) -> VibeSource {
-    let mut best: Option<&crate::types::Session> = None;
-    for session in &snap.sessions {
-        if session.phase != VibePhase::Active && session.phase != VibePhase::WaitingUser {
+    if let Some(source) = newest_session_matching(snap, |p| {
+        matches!(p, VibePhase::Active | VibePhase::WaitingUser)
+    }) {
+        return source;
+    }
+    if let Some(source) = newest_session_matching(snap, |_| true) {
+        return source;
+    }
+    if let Some(source) = newest_source_by_health(snap) {
+        return source;
+    }
+    default
+}
+
+fn newest_session_matching(
+    snap: &StatusSnapshot,
+    pred: impl Fn(VibePhase) -> bool,
+) -> Option<VibeSource> {
+    snap.sessions
+        .iter()
+        .filter(|s| pred(s.phase))
+        .max_by_key(|s| s.last_activity_at)
+        .map(|s| s.source)
+}
+
+fn newest_source_by_health(snap: &StatusSnapshot) -> Option<VibeSource> {
+    let mut best: Option<(VibeSource, chrono::DateTime<chrono::Utc>)> = None;
+    for source in VibeSource::all() {
+        let Some(health) = snap.sources.get(&source) else {
             continue;
-        }
-        let newer = best
-            .map(|b| session.last_activity_at > b.last_activity_at)
-            .unwrap_or(true);
-        if newer {
-            best = Some(session);
+        };
+        let Some(last) = health.last_seen else {
+            continue;
+        };
+        if best.as_ref().is_none_or(|(_, t)| last > *t) {
+            best = Some((source, last));
         }
     }
-    best.map(|s| s.source).unwrap_or(default)
+    best.map(|(s, _)| s)
 }
 
 fn load_state() -> PersistedState {
@@ -153,7 +179,31 @@ mod tests {
     }
 
     #[test]
-    fn pick_falls_back_to_default() {
+    fn pick_recent_stopped_over_default() {
+        let now = Utc::now();
+        let snap = StatusSnapshot {
+            daemon_ok: true,
+            port: 1,
+            lite_mode: false,
+            sources: Default::default(),
+            sessions: vec![crate::types::Session {
+                source: VibeSource::Cursor,
+                session_id: "c".into(),
+                cwd: None,
+                task_title: None,
+                last_tool: None,
+                last_activity_at: now,
+                phase: VibePhase::Stopped,
+            }],
+        };
+        assert_eq!(
+            pick_display_source(&snap, VibeSource::ClaudeCode),
+            VibeSource::Cursor
+        );
+    }
+
+    #[test]
+    fn pick_falls_back_to_default_when_no_activity() {
         let snap = StatusSnapshot {
             daemon_ok: true,
             port: 1,

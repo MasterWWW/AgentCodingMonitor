@@ -1,13 +1,16 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde_json::Value;
 use std::env;
 use std::io::{self, Read};
 
 fn main() {
-    if let Err(e) = run() {
+    let code = if let Err(e) = run() {
         eprintln!("vibe-hook: {e}");
-    }
-    std::process::exit(0);
+        1
+    } else {
+        0
+    };
+    std::process::exit(code);
 }
 
 fn run() -> Result<()> {
@@ -20,30 +23,19 @@ fn run() -> Result<()> {
     } else {
         serde_json::from_str(&stdin).context("invalid hook stdin json")?
     };
-    let mut ev = normalize(&source, &raw);
-    if ev.session_id.is_none() {
-        ev.session_id = raw
-            .get("session_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
-    }
+    let ev = normalize(&source, &raw);
 
     let port = read_port()?;
     let url = format!("http://127.0.0.1:{port}/api/events");
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build()?;
-    match client.post(&url).json(&ev).send() {
-        Ok(resp) if resp.status().is_success() => {}
-        Ok(resp) => {
-            eprintln!(
-                "vibe-hook: POST {url} failed with status {}",
-                resp.status()
-            );
-        }
-        Err(e) => {
-            eprintln!("vibe-hook: POST {url} error: {e}");
-        }
+    let resp = client.post(&url).json(&ev).send()?;
+    if !resp.status().is_success() {
+        bail!(
+            "POST {url} failed with status {}",
+            resp.status()
+        );
     }
     Ok(())
 }
@@ -82,49 +74,63 @@ fn read_port() -> Result<u16> {
 fn normalize(source: &str, raw: &Value) -> vibe_payload::NormalizedEvent {
     let src = match source {
         "cursor" => "cursor",
-        "claude" | "claude-code" => "claude_code",
+        "claude" | "claude-code" | "claude_code" => "claude_code",
         "codex" => "codex",
         _ => "cursor",
     };
     let event_name = raw
         .get("hook_event_name")
         .or_else(|| raw.get("event"))
+        .or_else(|| raw.get("type"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown")
         .to_string();
 
+    let session_id = raw
+        .get("session_id")
+        .or_else(|| raw.get("conversation_id"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let cwd = raw
+        .get("cwd")
+        .or_else(|| raw.get("workspace"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let tool_name = raw
+        .get("tool_name")
+        .or_else(|| raw.get("tool"))
+        .or_else(|| raw.get("tool_type"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     let prompt = raw
         .get("prompt")
         .or_else(|| raw.get("user_message"))
+        .or_else(|| raw.get("message"))
         .and_then(|v| v.as_str());
 
-    let task_title = prompt.map(|p| truncate_redact(p));
+    let task_title = prompt.map(truncate_redact);
 
     vibe_payload::NormalizedEvent {
         source: src.to_string(),
-        event_name,
-        session_id: raw
-            .get("session_id")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        cwd: raw
-            .get("cwd")
-            .or_else(|| raw.get("workspace"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
+        event_name: event_name.clone(),
+        session_id,
+        cwd,
         task_title,
-        tool_name: raw
-            .get("tool_name")
-            .or_else(|| raw.get("tool"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
-        raw_hint: None,
+        tool_name,
+        raw_hint: Some(event_name),
     }
 }
 
 fn truncate_redact(input: &str) -> String {
     let lower = input.to_lowercase();
-    if lower.contains("api_key") || lower.contains("sk-") || lower.contains("secret") {
+    if lower.contains("api_key")
+        || lower.contains("api-key")
+        || lower.contains("sk-")
+        || lower.contains("secret")
+    {
         return "[redacted]".to_string();
     }
     input.chars().take(120).collect::<String>().trim().to_string()
