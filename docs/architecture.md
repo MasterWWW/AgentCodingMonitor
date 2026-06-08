@@ -24,19 +24,22 @@ flowchart LR
 
 ## Desktop presentation (HUD)
 
-Persisted in `state.json` as `presentation`:
+Persisted in `state.json` as `display` (独立开关，可任意组合)：
 
-| Mode | Behavior |
-|------|----------|
-| `float` | Transparent always-on-top HUD window; default on macOS |
-| `menubar` | Hide HUD; tray icon shape switches per phase and (macOS/Linux) menu-bar title shows `Source · Phase` while Active/WaitingUser — see `docs/plans/tray-stateful-content.md` |
+| 开关 | 行为 |
+|------|------|
+| `float_hud` | 透明置顶 HUD 浮窗；macOS 默认开 |
+| `tray_status` | 托盘相位图标 + 菜单栏标题（Active/WaitingUser）；默认开 |
+| `lan_companion.enabled` | 局域网 iPad 看板；默认关 |
+
+旧版互斥字段 `presentation`（`float` / `menubar`）在读取时自动迁移。
 
 macOS additionally:
 
 - `visibleOnAllWorkspaces` on the main window so the float HUD follows all Spaces.
 - `LSUIElement` + `ActivationPolicy::Accessory` so the app does not appear in the Dock.
 
-Tray menu can switch presentation; `get_presentation` / `set_presentation` Tauri commands expose the same preference.
+Tray menu toggles each display channel; `get_display_settings` / `set_display_*` Tauri commands expose the same preferences (`get_presentation` 仍兼容旧互斥模式)。
 
 ## Hook installation
 
