@@ -54,8 +54,27 @@ jobs:
       - name: Collect installer artifacts
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p release-artifacts
-          find apps/desktop/src-tauri/target/release/bundle -type f \
+
+          # Cargo workspace 的 target 在仓库根目录，不是 src-tauri/target
+          BUNDLE_ROOT=""
+          for candidate in target/release/bundle apps/desktop/src-tauri/target/release/bundle; do
+            if [ -d "$candidate" ]; then
+              BUNDLE_ROOT="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$BUNDLE_ROOT" ]; then
+            echo "bundle directory not found. Searching..."
+            find . -type d -path '*/release/bundle' 2>/dev/null | head -20 || true
+            ls -la target/release 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Using bundle root: $BUNDLE_ROOT"
+          find "$BUNDLE_ROOT" -type f \
             \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.app.tar.gz' \) \
             -exec cp {} release-artifacts/ \;
           echo "Collected files:"
