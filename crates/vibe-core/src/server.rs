@@ -2,9 +2,10 @@ use crate::api::{router, AppState};
 use crate::install::sync_hook_health_from_disk;
 use crate::lite::spawn_lite_watcher;
 use crate::paths::{read_port, write_port};
+use crate::state::load_lan_companion_enabled;
 use crate::store::SessionStore;
 use anyhow::Result;
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use tokio::net::TcpListener;
 
@@ -41,7 +42,8 @@ pub async fn start(
         hook_search_hints,
     };
     let app = router(state);
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let bind_ip = bind_ip();
+    let addr = SocketAddr::from((bind_ip, port));
     let listener = TcpListener::bind(addr).await?;
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
@@ -55,15 +57,22 @@ pub async fn start(
     });
 
     tokio::spawn(async move {
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async {
-                let _ = shutdown_rx.await;
-            })
-            .await
-            .ok();
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async {
+            let _ = shutdown_rx.await;
+        })
+        .await
+        .ok();
     });
 
-    tracing::info!("vibe-core listening on http://127.0.0.1:{port}");
+    if load_lan_companion_enabled() {
+        tracing::info!("vibe-core listening on http://0.0.0.0:{port} (LAN companion enabled)");
+    } else {
+        tracing::info!("vibe-core listening on http://127.0.0.1:{port}");
+    }
 
     Ok(RunningServer {
         port,
@@ -72,16 +81,42 @@ pub async fn start(
     })
 }
 
+/// 局域网看板启用时绑定全部接口，否则仅本机。
+fn bind_ip() -> IpAddr {
+    if load_lan_companion_enabled() {
+        IpAddr::from([0, 0, 0, 0])
+    } else {
+        IpAddr::from([127, 0, 0, 1])
+    }
+}
+
 async fn bind_port() -> Result<u16> {
     let start = read_port().unwrap_or(DEFAULT_PORT);
+    let ip = bind_ip();
     for offset in 0..MAX_PORT_TRIES {
         let port = start + offset;
-        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let addr = SocketAddr::from((ip, port));
         if TcpListener::bind(addr).await.is_ok() {
             return Ok(port);
         }
     }
     anyhow::bail!("could not bind port {start}..{}", start + MAX_PORT_TRIES - 1);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bind_ip_follows_lan_setting() {
+        // 默认关闭时应为本机地址（测试进程内读取 state.json，不修改磁盘）。
+        let ip = bind_ip();
+        if load_lan_companion_enabled() {
+            assert_eq!(ip, IpAddr::from([0, 0, 0, 0]));
+        } else {
+            assert_eq!(ip, IpAddr::from([127, 0, 0, 1]));
+        }
+    }
 }
 
 pub fn init_tracing() {

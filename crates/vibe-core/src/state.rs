@@ -15,6 +15,41 @@ pub enum HudPresentation {
     MenuBar,
 }
 
+/// 各展示通道独立开关（浮窗 / 托盘状态 / iPad 看板互不排斥）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DisplayPreferences {
+    #[serde(default = "default_float_hud")]
+    pub float_hud: bool,
+    #[serde(default = "default_tray_status")]
+    pub tray_status: bool,
+}
+
+fn default_float_hud() -> bool {
+    cfg!(target_os = "macos")
+}
+
+fn default_tray_status() -> bool {
+    true
+}
+
+impl Default for DisplayPreferences {
+    fn default() -> Self {
+        Self {
+            float_hud: default_float_hud(),
+            tray_status: default_tray_status(),
+        }
+    }
+}
+
+/// 局域网 iPad / 手机看板配置（见 `docs/plans/lan-companion-dashboard.md`）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LanCompanionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub token: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PersistedState {
     #[serde(default)]
@@ -23,6 +58,10 @@ pub struct PersistedState {
     pub default_source: Option<VibeSource>,
     #[serde(default)]
     pub presentation: Option<HudPresentation>,
+    #[serde(default)]
+    pub display: Option<DisplayPreferences>,
+    #[serde(default)]
+    pub lan_companion: LanCompanionConfig,
 }
 
 /// Default lite mode: on for macOS (transcript fallback), off elsewhere.
@@ -66,16 +105,112 @@ pub fn default_presentation() -> HudPresentation {
     }
 }
 
-pub fn load_presentation() -> HudPresentation {
-    load_state()
-        .presentation
-        .unwrap_or_else(default_presentation)
+/// 从持久化状态读取展示偏好，兼容旧版 `presentation` 字段。
+pub fn load_display() -> DisplayPreferences {
+    let s = load_state();
+    if let Some(d) = s.display {
+        return d;
+    }
+    match s.presentation {
+        Some(HudPresentation::Float) => DisplayPreferences {
+            float_hud: true,
+            tray_status: true,
+        },
+        Some(HudPresentation::MenuBar) => DisplayPreferences {
+            float_hud: false,
+            tray_status: true,
+        },
+        None => DisplayPreferences::default(),
+    }
 }
 
-pub fn write_presentation(mode: HudPresentation) -> anyhow::Result<()> {
+/// 写入展示偏好（会清除旧版 `presentation` 字段）。
+pub fn write_display(prefs: DisplayPreferences) -> anyhow::Result<()> {
     let mut s = load_state();
-    s.presentation = Some(mode);
+    s.display = Some(prefs);
+    s.presentation = None;
     write_state(&s)
+}
+
+/// 切换浮窗 HUD 开关。
+pub fn write_float_hud(enabled: bool) -> anyhow::Result<()> {
+    let mut prefs = load_display();
+    prefs.float_hud = enabled;
+    write_display(prefs)
+}
+
+/// 切换托盘状态展示（相位图标 + 菜单栏标题）。
+pub fn write_tray_status(enabled: bool) -> anyhow::Result<()> {
+    let mut prefs = load_display();
+    prefs.tray_status = enabled;
+    write_display(prefs)
+}
+
+/// 兼容旧 API：按互斥模式读写。
+pub fn load_presentation() -> HudPresentation {
+    if load_display().float_hud {
+        HudPresentation::Float
+    } else {
+        HudPresentation::MenuBar
+    }
+}
+
+/// 兼容旧 API：float → 浮窗+托盘；menubar → 仅托盘。
+pub fn write_presentation(mode: HudPresentation) -> anyhow::Result<()> {
+    let prefs = match mode {
+        HudPresentation::Float => DisplayPreferences {
+            float_hud: true,
+            tray_status: true,
+        },
+        HudPresentation::MenuBar => DisplayPreferences {
+            float_hud: false,
+            tray_status: true,
+        },
+    };
+    write_display(prefs)
+}
+
+/// 读取局域网看板是否启用。
+pub fn load_lan_companion_enabled() -> bool {
+    load_state().lan_companion.enabled
+}
+
+/// 读取局域网看板 token（可能为空）。
+pub fn load_lan_companion_token() -> Option<String> {
+    load_state().lan_companion.token.clone()
+}
+
+/// 切换局域网看板；启用时确保存在 token。
+pub fn write_lan_companion_enabled(enabled: bool) -> anyhow::Result<()> {
+    let mut s = load_state();
+    s.lan_companion.enabled = enabled;
+    if enabled && s.lan_companion.token.is_none() {
+        s.lan_companion.token = Some(generate_lan_token());
+    }
+    write_state(&s)
+}
+
+/// 轮换局域网看板 token，旧链接失效。
+pub fn rotate_lan_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    let token = generate_lan_token();
+    s.lan_companion.token = Some(token.clone());
+    write_state(&s)?;
+    Ok(token)
+}
+
+/// 确保存在 token 并返回（启用看板前调用）。
+pub fn ensure_lan_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    if s.lan_companion.token.is_none() {
+        s.lan_companion.token = Some(generate_lan_token());
+        write_state(&s)?;
+    }
+    Ok(s.lan_companion.token.clone().unwrap())
+}
+
+fn generate_lan_token() -> String {
+    uuid::Uuid::new_v4().to_string().replace('-', "")
 }
 
 /// HUD display: latest in-progress session, else latest session by activity, else health `last_seen`, else default.
@@ -215,6 +350,27 @@ fn write_state(state: &PersistedState) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use chrono::Utc;
+
+    #[test]
+    fn display_migrates_from_legacy_presentation() {
+        let float = DisplayPreferences {
+            float_hud: true,
+            tray_status: true,
+        };
+        let menubar = DisplayPreferences {
+            float_hud: false,
+            tray_status: true,
+        };
+        assert_eq!(
+            float,
+            DisplayPreferences {
+                float_hud: true,
+                tray_status: true,
+                ..Default::default()
+            }
+        );
+        assert_ne!(float, menubar);
+    }
 
     #[test]
     fn pick_prefers_most_recent_in_progress() {

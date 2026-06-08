@@ -7,6 +7,7 @@ use tauri::{
 };
 use vibe_core::{
     install::{doctor, install_hooks, sync_hook_health_from_disk},
+    lan,
     paths::{self, first_run_marker},
     server::{init_tracing, start, RunningServer},
     state::{self, HudPresentation},
@@ -57,6 +58,105 @@ fn hook_search_hints(app: &AppHandle) -> Vec<PathBuf> {
 
 fn hook_binary_src(app: &AppHandle) -> Option<PathBuf> {
     vibe_core::paths::discover_hook_binary(&hook_search_hints(app))
+}
+
+/// 重载 embedded `vibe-core`（切换局域网看板绑定地址时使用）。
+fn reload_server(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let hook_src = state.hook_src.lock().unwrap().clone();
+    let hook_hints = state.hook_search_hints.lock().unwrap().clone();
+    let lite = state::load_lite_mode();
+    let mut rt = state.runtime.lock().unwrap();
+    if let Some(server) = rt.server.take() {
+        tauri::async_runtime::block_on(server.stop());
+    }
+    let server = tauri::async_runtime::block_on(start(hook_src, hook_hints, lite))
+        .map_err(|e| format!("failed to restart server: {e}"))?;
+    rt.port = server.port;
+    rt.server = Some(server);
+    Ok(())
+}
+
+/// 获取当前局域网看板主链接（启用且有私网 IP 时）。
+fn companion_primary_url(port: u16) -> Option<String> {
+    if !state::load_lan_companion_enabled() {
+        return None;
+    }
+    let token = state::load_lan_companion_token()?;
+    lan::companion_urls(port, &token).into_iter().next()
+}
+
+/// 复制看板链接到剪贴板。
+fn copy_companion_url(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    let Some(url) = companion_primary_url(port) else {
+        show_message(
+            "iPad 看板",
+            "请先启用 iPad 看板，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    };
+    match arboard::Clipboard::new().and_then(|mut c| c.set_text(&url)) {
+        Ok(()) => show_message("iPad 看板", &format!("已复制链接：\n{url}")),
+        Err(e) => show_message("复制失败", &e.to_string()),
+    }
+}
+
+/// 生成二维码图片并打开，供 iPad 扫码配对。
+fn show_companion_qr(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    let Some(url) = companion_primary_url(port) else {
+        show_message(
+            "iPad 看板",
+            "请先启用 iPad 看板，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    };
+    let code = match qrcode::QrCode::new(url.as_bytes()) {
+        Ok(c) => c,
+        Err(e) => {
+            show_message("二维码失败", &e.to_string());
+            return;
+        }
+    };
+    let image = code.render::<image::Luma<u8>>().quiet_zone(true).min_dimensions(280, 280).build();
+    let path = std::env::temp_dir().join("vibe-monitor-companion-qr.png");
+    if let Err(e) = image.save(&path) {
+        show_message("二维码失败", &e.to_string());
+        return;
+    }
+    let _ = open::that(&path);
+    show_message(
+        "iPad 看板",
+        &format!("请用 iPad 相机扫描二维码，或在 Safari 打开：\n\n{url}\n\n二维码图片已打开。"),
+    );
+}
+
+/// 切换局域网看板并重启 HTTP 服务。
+fn set_lan_companion_enabled(app: &AppHandle, enabled: bool) {
+    if let Err(e) = state::write_lan_companion_enabled(enabled) {
+        show_message("iPad 看板", &e.to_string());
+        return;
+    }
+    if enabled {
+        let _ = state::ensure_lan_token();
+    }
+    if let Err(e) = reload_server(app) {
+        show_message("iPad 看板", &e.to_string());
+        return;
+    }
+    if enabled {
+        copy_companion_url(app);
+    }
+    refresh_tray_ui(app);
 }
 
 #[tauri::command]
@@ -134,8 +234,7 @@ fn finish_first_run(app: AppHandle) -> Result<(), String> {
     std::fs::write(first_run_marker().map_err(|e| e.to_string())?, "ok")
         .map_err(|e| e.to_string())?;
 
-    let presentation = state::load_presentation();
-    apply_presentation(&app, presentation);
+    apply_display_preferences(&app);
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.emit("first-run-complete", ());
         let _ = main.show();
@@ -188,6 +287,37 @@ fn platform_defaults() -> serde_json::Value {
     })
 }
 
+#[derive(serde::Serialize)]
+struct DisplaySettingsResponse {
+    float_hud: bool,
+    tray_status: bool,
+    lan_companion: bool,
+}
+
+#[tauri::command]
+fn get_display_settings() -> DisplaySettingsResponse {
+    let display = state::load_display();
+    DisplaySettingsResponse {
+        float_hud: display.float_hud,
+        tray_status: display.tray_status,
+        lan_companion: state::load_lan_companion_enabled(),
+    }
+}
+
+#[tauri::command]
+fn set_display_float_hud(app: AppHandle, enabled: bool) -> Result<(), String> {
+    state::write_float_hud(enabled).map_err(|e| e.to_string())?;
+    apply_display_preferences(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_display_tray_status(app: AppHandle, enabled: bool) -> Result<(), String> {
+    state::write_tray_status(enabled).map_err(|e| e.to_string())?;
+    refresh_tray_ui(&app);
+    Ok(())
+}
+
 #[tauri::command]
 fn get_presentation() -> String {
     match state::load_presentation() {
@@ -204,8 +334,7 @@ fn set_presentation(app: AppHandle, mode: String) -> Result<(), String> {
         _ => return Err(format!("unknown presentation: {mode}")),
     };
     state::write_presentation(parsed).map_err(|e| e.to_string())?;
-    apply_presentation(&app, parsed);
-    refresh_tray_ui(&app);
+    apply_display_preferences(&app);
     Ok(())
 }
 
@@ -247,18 +376,17 @@ fn tray_icon_for_phase(phase: VibePhase) -> tauri::Result<tauri::image::Image<'s
     }
 }
 
-fn apply_presentation(app: &AppHandle, mode: HudPresentation) {
-    let Some(w) = app.get_webview_window("main") else {
-        return;
-    };
-    match mode {
-        HudPresentation::Float => {
+/// 按 `DisplayPreferences` 应用浮窗可见性；托盘状态在 `refresh_tray_status` 中处理。
+fn apply_display_preferences(app: &AppHandle) {
+    let prefs = state::load_display();
+    if let Some(w) = app.get_webview_window("main") {
+        if prefs.float_hud {
             let _ = w.show();
-        }
-        HudPresentation::MenuBar => {
+        } else {
             let _ = w.hide();
         }
     }
+    refresh_tray_ui(app);
 }
 
 #[cfg(target_os = "macos")]
@@ -316,15 +444,23 @@ fn refresh_tray_status(app: &AppHandle, snap: &StatusSnapshot) {
     };
     let _ = tray.set_tooltip(Some(tray_status_tooltip(snap)));
 
-    let source = state::pick_display_source(snap, state::load_default_source());
-    let phase = current_phase(snap, source);
-    if let Ok(icon) = tray_icon_for_phase(phase) {
-        let _ = tray.set_icon(Some(icon));
-        let _ = tray.set_icon_as_template(true);
+    let prefs = state::load_display();
+    if prefs.tray_status {
+        let source = state::pick_display_source(snap, state::load_default_source());
+        let phase = current_phase(snap, source);
+        if let Ok(icon) = tray_icon_for_phase(phase) {
+            let _ = tray.set_icon(Some(icon));
+            let _ = tray.set_icon_as_template(true);
+        }
+        // `set_title` 在 Windows 不支持，调用同样安全（返回 Ok 但无效果）；macOS / Linux 上即时联动。
+        let _ = tray.set_title(tray_status_title(snap).as_deref());
+    } else {
+        if let Ok(icon) = tray_icon_brand() {
+            let _ = tray.set_icon(Some(icon));
+            let _ = tray.set_icon_as_template(true);
+        }
+        let _ = tray.set_title(None::<&str>);
     }
-
-    // `set_title` 在 Windows 不支持，调用同样安全（返回 Ok 但无效果）；macOS / Linux 上即时联动。
-    let _ = tray.set_title(tray_status_title(snap).as_deref());
 }
 
 fn phase_label_cn(phase: VibePhase) -> &'static str {
@@ -388,7 +524,7 @@ fn status_line(snap: &StatusSnapshot, source: VibeSource) -> String {
 }
 
 fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu<tauri::Wry>> {
-    let presentation = state::load_presentation();
+    let display = state::load_display();
     let default_src = state::load_default_source();
     let display_src = state::pick_display_source(snap, default_src);
     let current_status = MenuItem::with_id(
@@ -440,26 +576,42 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
     )?;
     let default_codex =
         MenuItem::with_id(app, "default_codex", "设为默认 · Codex", true, None::<&str>)?;
-    let sep_presentation = PredefinedMenuItem::separator(app)?;
-    let presentation_float = CheckMenuItem::with_id(
+    let lan_enabled = state::load_lan_companion_enabled();
+    let sep_display = PredefinedMenuItem::separator(app)?;
+    let display_float = CheckMenuItem::with_id(
         app,
-        "presentation_float",
+        "display_float",
         "浮窗展示",
         true,
-        presentation == HudPresentation::Float,
+        display.float_hud,
         None::<&str>,
     )?;
-    let presentation_menubar = CheckMenuItem::with_id(
+    let display_tray = CheckMenuItem::with_id(
         app,
-        "presentation_menubar",
-        "菜单栏图标展示",
+        "display_tray",
+        "菜单栏状态",
         true,
-        presentation == HudPresentation::MenuBar,
+        display.tray_status,
+        None::<&str>,
+    )?;
+    let display_lan = CheckMenuItem::with_id(
+        app,
+        "display_lan",
+        "iPad 看板",
+        true,
+        lan_enabled,
+        None::<&str>,
+    )?;
+    let lan_copy = MenuItem::with_id(app, "lan_copy", "复制看板链接", lan_enabled, None::<&str>)?;
+    let lan_qr = MenuItem::with_id(app, "lan_qr", "显示配对二维码", lan_enabled, None::<&str>)?;
+    let lan_rotate = MenuItem::with_id(
+        app,
+        "lan_rotate",
+        "重新生成 token",
+        lan_enabled,
         None::<&str>,
     )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
-    let show = MenuItem::with_id(app, "show", "显示浮窗", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, "hide", "隐藏浮窗", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     Menu::with_items(
         app,
@@ -476,12 +628,14 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
             &default_cursor,
             &default_claude,
             &default_codex,
-            &sep_presentation,
-            &presentation_float,
-            &presentation_menubar,
+            &sep_display,
+            &display_float,
+            &display_tray,
+            &display_lan,
+            &lan_copy,
+            &lan_qr,
+            &lan_rotate,
             &sep2,
-            &show,
-            &hide,
             &quit,
         ],
     )
@@ -516,28 +670,18 @@ fn refresh_tray_ui(app: &AppHandle) {
 
 fn handle_tray_action(app: &AppHandle, id: &str) {
     match id {
-        "presentation_float" => {
-            let _ = state::write_presentation(HudPresentation::Float);
-            apply_presentation(app, HudPresentation::Float);
+        "display_float" => {
+            let enabled = !state::load_display().float_hud;
+            let _ = state::write_float_hud(enabled);
+            apply_display_preferences(app);
+        }
+        "display_tray" => {
+            let enabled = !state::load_display().tray_status;
+            let _ = state::write_tray_status(enabled);
             refresh_tray_ui(app);
         }
-        "presentation_menubar" => {
-            let _ = state::write_presentation(HudPresentation::MenuBar);
-            apply_presentation(app, HudPresentation::MenuBar);
-            refresh_tray_ui(app);
-        }
-        "show" => {
-            let _ = state::write_presentation(HudPresentation::Float);
-            apply_presentation(app, HudPresentation::Float);
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.set_focus();
-            }
-            refresh_tray_ui(app);
-        }
-        "hide" => {
-            let _ = state::write_presentation(HudPresentation::MenuBar);
-            apply_presentation(app, HudPresentation::MenuBar);
-            refresh_tray_ui(app);
+        "display_lan" => {
+            set_lan_companion_enabled(app, !state::load_lan_companion_enabled());
         }
         "quit" => app.exit(0),
         "fix" => {
@@ -598,6 +742,17 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
         }
         "default_codex" => {
             let _ = state::write_default_source(VibeSource::Codex);
+            refresh_tray_ui(app);
+        }
+        "lan_copy" => copy_companion_url(app),
+        "lan_qr" => show_companion_qr(app),
+        "lan_rotate" => {
+            if let Err(e) = state::rotate_lan_token() {
+                show_message("iPad 看板", &e.to_string());
+            } else {
+                show_message("iPad 看板", "已重新生成 token，旧链接已失效。正在复制新链接…");
+                copy_companion_url(app);
+            }
             refresh_tray_ui(app);
         }
         _ => {}
@@ -664,7 +819,7 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             } = event
             {
                 let app = tray.app_handle();
-                if state::load_presentation() == HudPresentation::Float {
+                if state::load_display().float_hud {
                     if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();
@@ -748,14 +903,13 @@ pub fn run() {
             spawn_tray_menu_sync(app.handle().clone());
             apply_frosted_main_window(app.handle());
 
-            let presentation = state::load_presentation();
             if needs_first_run() {
                 if let Some(main) = app.get_webview_window("main") {
                     let _ = main.hide();
                 }
                 show_wizard(app.handle());
             } else {
-                apply_presentation(app.handle(), presentation);
+                apply_display_preferences(app.handle());
             }
 
             Ok(())
@@ -768,6 +922,9 @@ pub fn run() {
             set_lite_mode,
             get_default_source,
             set_default_source,
+            get_display_settings,
+            set_display_float_hud,
+            set_display_tray_status,
             get_presentation,
             set_presentation,
             finish_first_run,

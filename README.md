@@ -10,7 +10,7 @@
 - **首次运行向导**：点击「启用监听」后，自动安装 `vibe-hook` 并合并三端 hook 配置（带 `vibe-monitor` 标记，可安全重复执行）。
 - **可选轻量模式**：递归监视 `~/.cursor/projects`、`~/.claude/projects`、`~/.codex/projects` 下全部 `*.jsonl`（三端不跳过）；hook 未触发时仍能感知活动（macOS 默认开启，其他平台默认关闭）。
 - **实时 HUD**：通过 SSE（`/api/stream`）刷新相位与来源；多个进行中的会话时，展示**最近活跃**的来源。
-- **macOS 展示模式**：置顶透明浮窗（`float`，默认）或仅托盘（`menubar`）；托盘菜单可切换模式、运行诊断、重新安装 hook。
+- **展示开关**：浮窗 HUD、菜单栏状态、iPad 看板可独立开关组合；托盘菜单一键切换。
 - **本地 HTTP API**：嵌入于桌面进程的 `vibe-core`（Axum），默认端口 **17392**；若被占用则依次尝试最多 5 个连续端口，当前端口写入数据目录下的 `port` 文件。
 
 ## 支持矩阵
@@ -96,6 +96,16 @@ flowchart LR
 | POST | `/api/events` | hook 上报 |
 | POST | `/api/install-hooks` | 安装/合并 hook |
 | GET | `/api/doctor` | 诊断信息 |
+| GET | `/api/lan-info` | 局域网看板配对信息（仅本机） |
+| GET | `/mobile` | iPad / 手机浏览器看板页 |
+
+### iPad 看板（局域网）
+
+托盘菜单可启用 **iPad 看板**：在同一 WiFi 下，用 iPad Safari 打开复制的链接即可实时查看 Agent 状态。数据不出局域网；写接口（hook 上报等）仍仅本机可访问。
+
+1. 托盘 → 勾选 **启用 iPad 看板**（会自动复制链接）
+2. iPad Safari 打开链接，可 **添加到主屏幕** 全屏使用
+3. iPad 无法通过网页保持常亮时，请在「设置 → 显示与亮度 → 自动锁定」选择 **永不**（建议插电）
 
 ## HUD 与相位说明
 
@@ -107,8 +117,9 @@ flowchart LR
 | `stopped` | 会话已结束 |
 | `unknown` | 尚未连接或未收到事件 |
 
-- **macOS** 默认 `float`：透明置顶 HUD，可在所有 Space 显示；应用以 Accessory 模式运行，不出现在 Dock。
-- **`menubar` 模式**：隐藏 HUD 浮窗，由托盘图标颜色反映当前相位（可在托盘菜单中切换）。
+- **浮窗展示**：透明置顶 HUD，可在所有 Space 显示（macOS 默认开启）；应用以 Accessory 模式运行，不出现在 Dock。
+- **菜单栏状态**：托盘图标随相位变色，进行中/等待你时在菜单栏显示摘要（默认开启，可单独关闭）。
+- **iPad 看板**：局域网浏览器看板，默认关闭，见下文。
 
 ## 数据目录与隐私
 
@@ -126,7 +137,7 @@ flowchart LR
 |-------------|------|
 | `bin/vibe-hook` | 已安装的上报二进制（Windows 另有 `vibe-hook.cmd`） |
 | `port` | 当前 HTTP 端口 |
-| `state.json` | 轻量模式、默认来源、展示模式等偏好 |
+| `state.json` | 轻量模式、默认来源、展示开关（浮窗/托盘/iPad）、等偏好 |
 | `first-run.done` | 首次向导完成标记 |
 
 **Hook 写入位置**（安装时合并，带 `metadata.source = "vibe-monitor"`）：
