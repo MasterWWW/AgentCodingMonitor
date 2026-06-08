@@ -15,6 +15,15 @@ pub enum HudPresentation {
     MenuBar,
 }
 
+/// 局域网 iPad / 手机看板配置（见 `docs/plans/lan-companion-dashboard.md`）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LanCompanionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub token: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PersistedState {
     #[serde(default)]
@@ -23,6 +32,8 @@ pub struct PersistedState {
     pub default_source: Option<VibeSource>,
     #[serde(default)]
     pub presentation: Option<HudPresentation>,
+    #[serde(default)]
+    pub lan_companion: LanCompanionConfig,
 }
 
 /// Default lite mode: on for macOS (transcript fallback), off elsewhere.
@@ -76,6 +87,49 @@ pub fn write_presentation(mode: HudPresentation) -> anyhow::Result<()> {
     let mut s = load_state();
     s.presentation = Some(mode);
     write_state(&s)
+}
+
+/// 读取局域网看板是否启用。
+pub fn load_lan_companion_enabled() -> bool {
+    load_state().lan_companion.enabled
+}
+
+/// 读取局域网看板 token（可能为空）。
+pub fn load_lan_companion_token() -> Option<String> {
+    load_state().lan_companion.token.clone()
+}
+
+/// 切换局域网看板；启用时确保存在 token。
+pub fn write_lan_companion_enabled(enabled: bool) -> anyhow::Result<()> {
+    let mut s = load_state();
+    s.lan_companion.enabled = enabled;
+    if enabled && s.lan_companion.token.is_none() {
+        s.lan_companion.token = Some(generate_lan_token());
+    }
+    write_state(&s)
+}
+
+/// 轮换局域网看板 token，旧链接失效。
+pub fn rotate_lan_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    let token = generate_lan_token();
+    s.lan_companion.token = Some(token.clone());
+    write_state(&s)?;
+    Ok(token)
+}
+
+/// 确保存在 token 并返回（启用看板前调用）。
+pub fn ensure_lan_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    if s.lan_companion.token.is_none() {
+        s.lan_companion.token = Some(generate_lan_token());
+        write_state(&s)?;
+    }
+    Ok(s.lan_companion.token.clone().unwrap())
+}
+
+fn generate_lan_token() -> String {
+    uuid::Uuid::new_v4().to_string().replace('-', "")
 }
 
 /// HUD display: latest in-progress session, else latest session by activity, else health `last_seen`, else default.

@@ -96,6 +96,16 @@ flowchart LR
 | POST | `/api/events` | hook 上报 |
 | POST | `/api/install-hooks` | 安装/合并 hook |
 | GET | `/api/doctor` | 诊断信息 |
+| GET | `/api/lan-info` | 局域网看板配对信息（仅本机） |
+| GET | `/mobile` | iPad / 手机浏览器看板页 |
+
+### iPad 看板（局域网）
+
+托盘菜单可启用 **iPad 看板**：在同一 WiFi 下，用 iPad Safari 打开复制的链接即可实时查看 Agent 状态。数据不出局域网；写接口（hook 上报等）仍仅本机可访问。
+
+1. 托盘 → 勾选 **启用 iPad 看板**（会自动复制链接）
+2. iPad Safari 打开链接，可 **添加到主屏幕** 全屏使用
+3. iPad 无法通过网页保持常亮时，请在「设置 → 显示与亮度 → 自动锁定」选择 **永不**（建议插电）
 
 ## HUD 与相位说明
 
@@ -126,7 +136,7 @@ flowchart LR
 |-------------|------|
 | `bin/vibe-hook` | 已安装的上报二进制（Windows 另有 `vibe-hook.cmd`） |
 | `port` | 当前 HTTP 端口 |
-| `state.json` | 轻量模式、默认来源、展示模式等偏好 |
+| `state.json` | 轻量模式、默认来源、展示模式、iPad 看板等偏好 |
 | `first-run.done` | 首次向导完成标记 |
 
 **Hook 写入位置**（安装时合并，带 `metadata.source = "vibe-monitor"`）：

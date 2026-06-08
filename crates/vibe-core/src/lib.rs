@@ -1,7 +1,9 @@
 pub mod api;
 pub mod event;
 pub mod install;
+pub mod lan;
 pub mod lite;
+pub mod mobile;
 pub mod paths;
 pub mod server;
 pub mod state;

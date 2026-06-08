@@ -58,6 +58,12 @@ Windows installs `vibe-hook.cmd` wrapping `vibe-hook.exe`.
 | POST | `/api/events` |
 | POST | `/api/install-hooks` |
 | GET | `/api/doctor` |
+| GET | `/api/lan-info` (loopback only) | 局域网看板配对信息 |
+| GET | `/mobile` | iPad / 手机看板页 |
+
+### LAN companion（iPad 看板）
+
+可选在托盘启用：绑定 `0.0.0.0`，局域网设备通过 `GET /mobile?token=…` 查看看板；`POST` 等写接口仍仅 `127.0.0.1`。详见 `docs/plans/lan-companion-dashboard.md`。
 
 ## Data directory
 

@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0a0b10" />
+  <title>Vibe Monitor</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0b10;
+      --text: #e8eaef;
+      --muted: #8b93a7;
+      --border: rgba(255, 255, 255, 0.1);
+      --green: #4ade80;
+      --amber: #fbbf24;
+      --red: #f87171;
+      --slate: #94a3b8;
+      --violet: #a78bfa;
+      --card-radius: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+      overflow-x: hidden;
+    }
+
+    .bg-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .bg-glow::before,
+    .bg-glow::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.35;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+
+    .bg-glow::before {
+      width: 55vw;
+      height: 55vw;
+      top: -10%;
+      left: -15%;
+      background: radial-gradient(circle, rgba(74, 222, 128, 0.5), transparent 70%);
+    }
+
+    .bg-glow::after {
+      width: 50vw;
+      height: 50vw;
+      bottom: -5%;
+      right: -10%;
+      background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 70%);
+      animation-delay: -6s;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to { transform: translate(4%, 6%) scale(1.08); }
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 520px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: calc(100dvh - 48px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 2px 8px;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #3b5bdb, #7048e8);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 15px;
+      box-shadow: 0 8px 24px rgba(59, 91, 219, 0.35);
+    }
+
+    .brand h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .hero {
+      border-radius: var(--card-radius);
+      border: 1px solid var(--border);
+      padding: 28px 24px 24px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: background 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      opacity: 0.12;
+      background: radial-gradient(ellipse at top right, #fff, transparent 55%);
+      pointer-events: none;
+    }
+
+    .hero.phase-active {
+      background: linear-gradient(145deg, rgba(34, 197, 94, 0.22), rgba(6, 78, 59, 0.18));
+      border-color: rgba(74, 222, 128, 0.45);
+      box-shadow: 0 0 40px rgba(34, 197, 94, 0.18);
+    }
+
+    .hero.phase-waiting {
+      background: linear-gradient(145deg, rgba(251, 191, 36, 0.24), rgba(120, 53, 15, 0.2));
+      border-color: rgba(251, 191, 36, 0.5);
+      box-shadow: 0 0 36px rgba(245, 158, 11, 0.2);
+      animation: waiting-glow 2.4s ease-in-out infinite;
+    }
+
+    .hero.phase-stopped {
+      background: linear-gradient(145deg, rgba(239, 68, 68, 0.2), rgba(127, 29, 29, 0.18));
+      border-color: rgba(248, 113, 113, 0.45);
+    }
+
+    .hero.phase-idle {
+      background: linear-gradient(145deg, rgba(100, 116, 139, 0.2), rgba(30, 41, 59, 0.22));
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+
+    .hero.phase-unknown {
+      background: linear-gradient(145deg, rgba(167, 139, 250, 0.18), rgba(55, 48, 163, 0.16));
+      border-color: rgba(167, 139, 250, 0.35);
+      border-style: dashed;
+    }
+
+    @keyframes waiting-glow {
+      0%, 100% { box-shadow: 0 0 28px rgba(245, 158, 11, 0.15); }
+      50% { box-shadow: 0 0 48px rgba(245, 158, 11, 0.32); }
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+      position: relative;
+    }
+
+    .source-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.active {
+      background: var(--green);
+      box-shadow: 0 0 12px rgba(74, 222, 128, 0.8);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .dot.waiting {
+      background: var(--amber);
+      box-shadow: 0 0 12px rgba(251, 191, 36, 0.75);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .dot.stopped { background: var(--red); box-shadow: 0 0 10px rgba(248, 113, 113, 0.55); }
+    .dot.idle { background: var(--slate); }
+    .dot.unknown { background: var(--violet); box-shadow: 0 0 10px rgba(167, 139, 250, 0.45); }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.18); opacity: 0.82; }
+    }
+
+    .phase-badge {
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      white-space: nowrap;
+    }
+
+    .task-title {
+      font-size: clamp(1.55rem, 5.5vw, 2.15rem);
+      font-weight: 700;
+      line-height: 1.25;
+      letter-spacing: -0.03em;
+      margin-bottom: 10px;
+      position: relative;
+      word-break: break-word;
+    }
+
+    .task-meta {
+      font-size: 0.92rem;
+      color: var(--muted);
+      position: relative;
+    }
+
+    .sources-card {
+      border-radius: var(--card-radius);
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+
+    .sources-card h2 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      padding: 14px 18px 8px;
+      font-weight: 600;
+    }
+
+    .source-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      gap: 12px;
+    }
+
+    .source-row .left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .source-row .right {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .footer {
+      margin-top: auto;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      padding-top: 8px;
+    }
+
+    .conn-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+      background: var(--slate);
+    }
+
+    .conn-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
+    .conn-dot.off { background: var(--red); }
+
+    .pairing {
+      border-radius: var(--card-radius);
+      border: 1px dashed rgba(167, 139, 250, 0.45);
+      background: rgba(167, 139, 250, 0.08);
+      padding: 24px 20px;
+      line-height: 1.6;
+    }
+
+    .pairing h2 {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+    }
+
+    .pairing ol {
+      margin: 12px 0 0 20px;
+      color: #c4c9d4;
+      font-size: 0.92rem;
+    }
+
+    .pairing li { margin-bottom: 8px; }
+
+    .hint-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.25);
+      font-size: 0.82rem;
+      color: #a8b0c0;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="bg-glow" id="bgGlow"></div>
+
+  <div class="wrap">
+    <header class="brand">
+      <div class="brand-mark">V</div>
+      <div>
+        <h1>Vibe Monitor</h1>
+        <p>Agent 状态看板</p>
+      </div>
+    </header>
+
+    <section id="pairingView" class="pairing hidden">
+      <h2>需要配对</h2>
+      <p>在运行 Vibe Monitor 的电脑上：</p>
+      <ol>
+        <li>打开托盘菜单，勾选「启用 iPad 看板」</li>
+        <li>点击「复制看板链接」或扫描二维码</li>
+        <li>用本页打开完整链接（含 <code>token=</code> 参数）</li>
+      </ol>
+      <div class="hint-box">
+        iPad mini 4 无法通过网页保持常亮。请在「设置 → 显示与亮度 → 自动锁定」中选择「永不」，并建议插电使用。
+      </div>
+    </section>
+
+    <main id="dashboardView" class="hidden">
+      <section class="hero phase-unknown" id="heroCard">
+        <div class="hero-top">
+          <div class="source-pill">
+            <span class="dot unknown" id="heroDot"></span>
+            <span id="heroSource">—</span>
+          </div>
+          <span class="phase-badge" id="heroPhase">未知</span>
+        </div>
+        <div class="task-title" id="heroTitle">等待活动…</div>
+        <div class="task-meta" id="heroMeta">—</div>
+      </section>
+
+      <section class="sources-card">
+        <h2>全部来源</h2>
+        <div id="sourceList"></div>
+      </section>
+    </main>
+
+    <footer class="footer" id="footer">
+      <span class="conn-dot off" id="connDot"></span>
+      <span id="connText">连接中…</span>
+    </footer>
+  </div>
+
+  <script>
+    const SOURCE_LABELS = {
+      cursor: "Cursor",
+      claude_code: "Claude Code",
+      codex: "Codex",
+    };
+    const SOURCE_ORDER = ["cursor", "claude_code", "codex"];
+    const PHASE_LABELS = {
+      active: "进行中",
+      idle: "空闲",
+      waiting_user: "等待你",
+      stopped: "已结束",
+      unknown: "未知",
+    };
+    const IN_PROGRESS = ["active", "waiting_user"];
+    const NEAR_DUPLICATE_MS = 2000;
+    const DEFAULT_SOURCE = "cursor";
+
+    const params = new URLSearchParams(location.search);
+    const token = params.get("token");
+
+    const pairingView = document.getElementById("pairingView");
+    const dashboardView = document.getElementById("dashboardView");
+    const heroCard = document.getElementById("heroCard");
+    const heroDot = document.getElementById("heroDot");
+    const heroSource = document.getElementById("heroSource");
+    const heroPhase = document.getElementById("heroPhase");
+    const heroTitle = document.getElementById("heroTitle");
+    const heroMeta = document.getElementById("heroMeta");
+    const sourceList = document.getElementById("sourceList");
+    const connDot = document.getElementById("connDot");
+    const connText = document.getElementById("connText");
+    const bgGlow = document.getElementById("bgGlow");
+
+    let es = null;
+    let pollTimer = null;
+    let wakeLock = null;
+    let lastUpdate = null;
+
+    function phaseClass(phase) {
+      switch (phase) {
+        case "active": return "active";
+        case "waiting_user": return "waiting";
+        case "stopped": return "stopped";
+        case "idle": return "idle";
+        default: return "unknown";
+      }
+    }
+
+    function sourceDisplayPriority(source, defaultSource) {
+      if (source === defaultSource) return 0;
+      const idx = SOURCE_ORDER.indexOf(source);
+      return idx >= 0 ? idx + 1 : 99;
+    }
+
+    function isNearDuplicateGroup(sessions) {
+      if (sessions.length < 2) return false;
+      const times = sessions.map((s) => new Date(s.last_activity_at).getTime());
+      return Math.max(...times) - Math.min(...times) <= NEAR_DUPLICATE_MS;
+    }
+
+    function pickSourceFromGroup(sessions, defaultSource) {
+      if (isNearDuplicateGroup(sessions)) {
+        const sorted = [...sessions].sort((a, b) => {
+          const pa = sourceDisplayPriority(a.source, defaultSource);
+          const pb = sourceDisplayPriority(b.source, defaultSource);
+          if (pa !== pb) return pa - pb;
+          return new Date(b.last_activity_at) - new Date(a.last_activity_at);
+        });
+        return sorted[0].source;
+      }
+      const newest = [...sessions].sort(
+        (a, b) => new Date(b.last_activity_at) - new Date(a.last_activity_at)
+      )[0];
+      return newest.source;
+    }
+
+    function newestSession(snap, pred) {
+      const candidates = (snap.sessions || []).filter((s) => pred(s.phase));
+      if (!candidates.length) return null;
+      const groups = new Map();
+      for (const s of candidates) {
+        const list = groups.get(s.session_id) || [];
+        list.push(s);
+        groups.set(s.session_id, list);
+      }
+      let best = null;
+      for (const sessions of groups.values()) {
+        const source = pickSourceFromGroup(sessions, DEFAULT_SOURCE);
+        const at = Math.max(...sessions.map((s) => new Date(s.last_activity_at).getTime()));
+        if (!best || at > best.at) best = { source, at };
+      }
+      return best ? best.source : null;
+    }
+
+    function newestSourceByHealth(snap) {
+      let best = null;
+      for (const source of SOURCE_ORDER) {
+        const last = snap.sources?.[source]?.last_seen;
+        if (!last) continue;
+        const at = new Date(last).getTime();
+        if (!best || at > best.at) best = { source, at };
+      }
+      return best ? best.source : null;
+    }
+
+    function pickDisplaySource(snap) {
+      return (
+        newestSession(snap, (p) => IN_PROGRESS.includes(p)) ||
+        newestSession(snap, () => true) ||
+        newestSourceByHealth(snap) ||
+        DEFAULT_SOURCE
+      );
+    }
+
+    function sessionForSource(snap, source) {
+      return (snap.sessions || []).find((s) => s.source === source);
+    }
+
+    function currentPhase(snap, source) {
+      const session = sessionForSource(snap, source);
+      const health = snap.sources?.[source];
+      return session?.phase || health?.phase || "unknown";
+    }
+
+    function detailForSource(snap, source) {
+      const health = snap.sources?.[source];
+      const session = sessionForSource(snap, source);
+      const hookInstalled = health?.hook_installed;
+      const phase = currentPhase(snap, source);
+      if (session?.task_title) return session.task_title;
+      if (session?.cwd) return session.cwd;
+      if (health?.note) return health.note;
+      if (hookInstalled && phase === "unknown") return "等待活动（已配置 hook）";
+      if (hookInstalled) return "等待活动";
+      return "未配置 hook";
+    }
+
+    function truncate(str, max) {
+      if (!str) return "";
+      return str.length <= max ? str : str.slice(0, max) + "…";
+    }
+
+    function setConnected(live, text) {
+      connDot.className = "conn-dot " + (live ? "live" : "off");
+      connText.textContent = text;
+    }
+
+    function updateGlow(phase) {
+      const colors = {
+        active: ["rgba(74,222,128,0.5)", "rgba(34,197,94,0.3)"],
+        waiting_user: ["rgba(251,191,36,0.55)", "rgba(245,158,11,0.28)"],
+        stopped: ["rgba(248,113,113,0.45)", "rgba(239,68,68,0.22)"],
+        idle: ["rgba(148,163,184,0.35)", "rgba(100,116,139,0.2)"],
+        unknown: ["rgba(167,139,250,0.45)", "rgba(107,114,128,0.22)"],
+      };
+      const [a, b] = colors[phase] || colors.unknown;
+      bgGlow.style.setProperty("--glow-a", a);
+      bgGlow.style.setProperty("--glow-b", b);
+    }
+
+    function render(snap) {
+      if (!snap) return;
+      lastUpdate = new Date();
+      const displaySource = pickDisplaySource(snap);
+      const phase = currentPhase(snap, displaySource);
+      const pc = phaseClass(phase);
+
+      heroCard.className = "hero phase-" + pc;
+      heroDot.className = "dot " + pc;
+      heroSource.textContent = SOURCE_LABELS[displaySource] || displaySource;
+      heroPhase.textContent = PHASE_LABELS[phase] || phase;
+
+      const session = sessionForSource(snap, displaySource);
+      const detail = detailForSource(snap, displaySource);
+      heroTitle.textContent = truncate(detail, 80) || "等待活动…";
+      heroMeta.textContent = session?.last_tool
+        ? "最近工具 · " + session.last_tool
+        : snap.lite_mode ? "轻量模式已开启" : "Hook 监听";
+
+      updateGlow(phase);
+
+      sourceList.innerHTML = SOURCE_ORDER.map((source) => {
+        const p = currentPhase(snap, source);
+        const cls = phaseClass(p);
+        const label = PHASE_LABELS[p] || p;
+        const sub = truncate(detailForSource(snap, source), 28);
+        return (
+          '<div class="source-row">' +
+            '<div class="left"><span class="dot ' + cls + '"></span>' +
+            (SOURCE_LABELS[source] || source) + '</div>' +
+            '<div class="right">' + label + '<br><span style="opacity:0.75">' + sub + '</span></div>' +
+          '</div>'
+        );
+      }).join("");
+
+      const time = lastUpdate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setConnected(true, "已连接 · " + time);
+    }
+
+    async function fetchStatus() {
+      const q = token ? "?token=" + encodeURIComponent(token) : "";
+      const res = await fetch("/api/status" + q);
+      if (!res.ok) throw new Error("status " + res.status);
+      return res.json();
+    }
+
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(async () => {
+        try {
+          const snap = await fetchStatus();
+          render(snap);
+        } catch {
+          setConnected(false, "已断开 · 轮询失败");
+        }
+      }, 5000);
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    async function requestWakeLock() {
+      if (!("wakeLock" in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request("screen");
+      } catch (_) { /* iOS 15 不支持 */ }
+    }
+
+    function connectSSE() {
+      const q = "?token=" + encodeURIComponent(token);
+      es = new EventSource("/api/stream" + q);
+      es.onopen = () => {
+        stopPolling();
+        setConnected(true, "实时连接中…");
+        requestWakeLock();
+      };
+      es.onmessage = (ev) => {
+        try {
+          render(JSON.parse(ev.data));
+        } catch (_) { /* ignore */ }
+      };
+      es.onerror = () => {
+        es.close();
+        es = null;
+        setConnected(false, "已断开 · 正在重连…");
+        startPolling();
+        setTimeout(connectSSE, 3000);
+      };
+    }
+
+    function showPairing() {
+      pairingView.classList.remove("hidden");
+      dashboardView.classList.add("hidden");
+      setConnected(false, "未配对");
+    }
+
+    function showDashboard() {
+      pairingView.classList.add("hidden");
+      dashboardView.classList.remove("hidden");
+    }
+
+    async function init() {
+      if (!token) {
+        showPairing();
+        return;
+      }
+      showDashboard();
+      try {
+        const snap = await fetchStatus();
+        render(snap);
+        connectSSE();
+      } catch (e) {
+        if (String(e).includes("401")) {
+          showPairing();
+          heroTitle.textContent = "token 无效或已过期";
+          return;
+        }
+        setConnected(false, "连接失败 · 请检查 WiFi 与电脑看板开关");
+        startPolling();
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && token) {
+          requestWakeLock();
+          if (!es) connectSSE();
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

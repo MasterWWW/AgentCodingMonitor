@@ -7,6 +7,7 @@ use tauri::{
 };
 use vibe_core::{
     install::{doctor, install_hooks, sync_hook_health_from_disk},
+    lan,
     paths::{self, first_run_marker},
     server::{init_tracing, start, RunningServer},
     state::{self, HudPresentation},
@@ -57,6 +58,105 @@ fn hook_search_hints(app: &AppHandle) -> Vec<PathBuf> {
 
 fn hook_binary_src(app: &AppHandle) -> Option<PathBuf> {
     vibe_core::paths::discover_hook_binary(&hook_search_hints(app))
+}
+
+/// 重载 embedded `vibe-core`（切换局域网看板绑定地址时使用）。
+fn reload_server(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let hook_src = state.hook_src.lock().unwrap().clone();
+    let hook_hints = state.hook_search_hints.lock().unwrap().clone();
+    let lite = state::load_lite_mode();
+    let mut rt = state.runtime.lock().unwrap();
+    if let Some(server) = rt.server.take() {
+        tauri::async_runtime::block_on(server.stop());
+    }
+    let server = tauri::async_runtime::block_on(start(hook_src, hook_hints, lite))
+        .map_err(|e| format!("failed to restart server: {e}"))?;
+    rt.port = server.port;
+    rt.server = Some(server);
+    Ok(())
+}
+
+/// 获取当前局域网看板主链接（启用且有私网 IP 时）。
+fn companion_primary_url(port: u16) -> Option<String> {
+    if !state::load_lan_companion_enabled() {
+        return None;
+    }
+    let token = state::load_lan_companion_token()?;
+    lan::companion_urls(port, &token).into_iter().next()
+}
+
+/// 复制看板链接到剪贴板。
+fn copy_companion_url(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    let Some(url) = companion_primary_url(port) else {
+        show_message(
+            "iPad 看板",
+            "请先启用 iPad 看板，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    };
+    match arboard::Clipboard::new().and_then(|mut c| c.set_text(&url)) {
+        Ok(()) => show_message("iPad 看板", &format!("已复制链接：\n{url}")),
+        Err(e) => show_message("复制失败", &e.to_string()),
+    }
+}
+
+/// 生成二维码图片并打开，供 iPad 扫码配对。
+fn show_companion_qr(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    let Some(url) = companion_primary_url(port) else {
+        show_message(
+            "iPad 看板",
+            "请先启用 iPad 看板，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    };
+    let code = match qrcode::QrCode::new(url.as_bytes()) {
+        Ok(c) => c,
+        Err(e) => {
+            show_message("二维码失败", &e.to_string());
+            return;
+        }
+    };
+    let image = code.render::<image::Luma<u8>>().quiet_zone(true).min_dimensions(280, 280).build();
+    let path = std::env::temp_dir().join("vibe-monitor-companion-qr.png");
+    if let Err(e) = image.save(&path) {
+        show_message("二维码失败", &e.to_string());
+        return;
+    }
+    let _ = open::that(&path);
+    show_message(
+        "iPad 看板",
+        &format!("请用 iPad 相机扫描二维码，或在 Safari 打开：\n\n{url}\n\n二维码图片已打开。"),
+    );
+}
+
+/// 切换局域网看板并重启 HTTP 服务。
+fn set_lan_companion_enabled(app: &AppHandle, enabled: bool) {
+    if let Err(e) = state::write_lan_companion_enabled(enabled) {
+        show_message("iPad 看板", &e.to_string());
+        return;
+    }
+    if enabled {
+        let _ = state::ensure_lan_token();
+    }
+    if let Err(e) = reload_server(app) {
+        show_message("iPad 看板", &e.to_string());
+        return;
+    }
+    if enabled {
+        copy_companion_url(app);
+    }
+    refresh_tray_ui(app);
 }
 
 #[tauri::command]
@@ -440,6 +540,41 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
     )?;
     let default_codex =
         MenuItem::with_id(app, "default_codex", "设为默认 · Codex", true, None::<&str>)?;
+    let lan_enabled = state::load_lan_companion_enabled();
+    let lan_status_label = if lan_enabled {
+        let port = snap.port;
+        if let Some(url) = companion_primary_url(port) {
+            let host = url
+                .trim_start_matches("http://")
+                .split('/')
+                .next()
+                .unwrap_or("已启用");
+            format!("iPad 看板 · {host}")
+        } else {
+            "iPad 看板 · 已启用（无局域网 IP）".to_string()
+        }
+    } else {
+        "iPad 看板 · 未启用".to_string()
+    };
+    let lan_status = MenuItem::with_id(app, "lan_status", lan_status_label, false, None::<&str>)?;
+    let lan_enable = CheckMenuItem::with_id(
+        app,
+        "lan_enable",
+        "启用 iPad 看板",
+        true,
+        lan_enabled,
+        None::<&str>,
+    )?;
+    let lan_copy = MenuItem::with_id(app, "lan_copy", "复制看板链接", lan_enabled, None::<&str>)?;
+    let lan_qr = MenuItem::with_id(app, "lan_qr", "显示配对二维码", lan_enabled, None::<&str>)?;
+    let lan_rotate = MenuItem::with_id(
+        app,
+        "lan_rotate",
+        "重新生成 token",
+        lan_enabled,
+        None::<&str>,
+    )?;
+    let sep_lan = PredefinedMenuItem::separator(app)?;
     let sep_presentation = PredefinedMenuItem::separator(app)?;
     let presentation_float = CheckMenuItem::with_id(
         app,
@@ -476,6 +611,12 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
             &default_cursor,
             &default_claude,
             &default_codex,
+            &sep_lan,
+            &lan_status,
+            &lan_enable,
+            &lan_copy,
+            &lan_qr,
+            &lan_rotate,
             &sep_presentation,
             &presentation_float,
             &presentation_menubar,
@@ -598,6 +739,20 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
         }
         "default_codex" => {
             let _ = state::write_default_source(VibeSource::Codex);
+            refresh_tray_ui(app);
+        }
+        "lan_enable" => {
+            set_lan_companion_enabled(app, !state::load_lan_companion_enabled());
+        }
+        "lan_copy" => copy_companion_url(app),
+        "lan_qr" => show_companion_qr(app),
+        "lan_rotate" => {
+            if let Err(e) = state::rotate_lan_token() {
+                show_message("iPad 看板", &e.to_string());
+            } else {
+                show_message("iPad 看板", "已重新生成 token，旧链接已失效。正在复制新链接…");
+                copy_companion_url(app);
+            }
             refresh_tray_ui(app);
         }
         _ => {}
