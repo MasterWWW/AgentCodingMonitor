@@ -1,6 +1,7 @@
 # Vibe Monitor
 
 [![CI](https://github.com/vibe-monitor/vibe-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/vibe-monitor/vibe-monitor/actions/workflows/ci.yml)
+[![Release](https://github.com/vibe-monitor/vibe-monitor/actions/workflows/release.yml/badge.svg)](https://github.com/vibe-monitor/vibe-monitor/actions/workflows/release.yml)
 
 
 跨平台桌面 **HUD 浮窗 / 系统托盘** 工具，监听 **Cursor**、**Claude Code**、**OpenAI Codex** 是否处于 Agent 式 vibe coding，并在浮窗或托盘上显示当前任务摘要。所有通信仅在 `127.0.0.1` 本机完成，**不上传云端**。
@@ -23,7 +24,7 @@
 | Codex hooks | 是（需 `codex_hooks`） | 可能受限 | 理论支持 |
 | 轻量 transcript 模式 | 是（默认开） | 是（默认关） | 是 |
 
-官方 **CI 构建与发布** 目标平台为 **macOS、Windows**（见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)）。Linux 可自行 `tauri build`，行为未经 CI 保证。
+官方 **CI 构建与发布** 目标平台为 **macOS、Windows**（见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)、[`.github/workflows/release.yml`](.github/workflows/release.yml)）。Linux 可自行 `tauri build`，行为未经 CI 保证。
 
 ## 开箱即用
 
