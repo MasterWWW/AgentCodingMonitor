@@ -4,77 +4,107 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#0a0b10" />
-  <title>Vibe Monitor</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="theme-color" content="#fff5f8" />
+  <title>萌宠看板 · Vibe Monitor</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #0a0b10;
-      --text: #e8eaef;
-      --muted: #8b93a7;
-      --border: rgba(255, 255, 255, 0.1);
-      --green: #4ade80;
-      --amber: #fbbf24;
-      --red: #f87171;
-      --slate: #94a3b8;
-      --violet: #a78bfa;
-      --card-radius: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      color-scheme: light;
+      --bg-top: #fff5f8;
+      --bg-bottom: #f0f4ff;
+      --text: #4a3f55;
+      --muted: #9b8faa;
+      --card: #ffffff;
+      --shadow: rgba(155, 143, 170, 0.18);
+      --green: #86efac;
+      --green-bg: #ecfdf5;
+      --amber: #fcd34d;
+      --amber-bg: #fffbeb;
+      --purple: #ddd6fe;
+      --purple-bg: #f5f3ff;
+      --pink: #fbcfe8;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "Segoe UI", sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
       min-height: 100%;
-      background: var(--bg);
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
     }
 
     body {
-      padding: max(20px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom));
+      padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
       overflow-x: hidden;
     }
 
-    .bg-glow {
+    .scene-overlay {
       position: fixed;
       inset: 0;
       pointer-events: none;
       z-index: 0;
-      overflow: hidden;
+      transition: opacity 0.6s ease;
     }
 
-    .bg-glow::before,
-    .bg-glow::after {
+    .scene-overlay.day::before,
+    .scene-overlay.day::after {
       content: "";
       position: absolute;
       border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.35;
-      animation: drift 18s ease-in-out infinite alternate;
+      opacity: 0.5;
     }
 
-    .bg-glow::before {
-      width: 55vw;
-      height: 55vw;
-      top: -10%;
-      left: -15%;
-      background: radial-gradient(circle, rgba(74, 222, 128, 0.5), transparent 70%);
+    .scene-overlay.day::before {
+      width: 120px; height: 60px;
+      top: 12%; left: 8%;
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 60px;
+      box-shadow: 40px 8px 0 -8px rgba(255,255,255,0.7), 80px 4px 0 -12px rgba(255,255,255,0.5);
+      animation: cloud-drift 24s ease-in-out infinite alternate;
     }
 
-    .bg-glow::after {
-      width: 50vw;
-      height: 50vw;
-      bottom: -5%;
-      right: -10%;
-      background: radial-gradient(circle, rgba(167, 139, 250, 0.45), transparent 70%);
-      animation-delay: -6s;
+    .scene-overlay.day::after {
+      width: 90px; height: 45px;
+      top: 18%; right: 12%;
+      background: rgba(255, 255, 255, 0.75);
+      border-radius: 45px;
+      box-shadow: 30px 6px 0 -6px rgba(255,255,255,0.6);
+      animation: cloud-drift 20s ease-in-out infinite alternate-reverse;
     }
 
-    @keyframes drift {
-      from { transform: translate(0, 0) scale(1); }
-      to { transform: translate(4%, 6%) scale(1.08); }
+    .scene-overlay.night::before {
+      content: "🌙";
+      position: absolute;
+      top: 10%; right: 15%;
+      font-size: 2.5rem;
+      animation: moon-glow 3s ease-in-out infinite;
+    }
+
+    .scene-overlay.night::after {
+      content: "✨ ✨ ✨";
+      position: absolute;
+      top: 8%; left: 10%;
+      font-size: 0.9rem;
+      letter-spacing: 8px;
+      opacity: 0.7;
+      animation: twinkle 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes cloud-drift {
+      from { transform: translateX(0); }
+      to { transform: translateX(20px); }
+    }
+
+    @keyframes moon-glow {
+      0%, 100% { opacity: 0.85; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+
+    @keyframes twinkle {
+      from { opacity: 0.4; }
+      to { opacity: 0.9; }
     }
 
     .wrap {
@@ -84,33 +114,31 @@
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      gap: 18px;
-      min-height: calc(100dvh - 48px);
+      min-height: calc(100dvh - 40px);
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 4px 2px 8px;
+      padding: 8px 4px 12px;
     }
 
     .brand-mark {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, #3b5bdb, #7048e8);
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fbcfe8, #ddd6fe);
       display: grid;
       place-items: center;
-      font-weight: 800;
-      font-size: 15px;
-      box-shadow: 0 8px 24px rgba(59, 91, 219, 0.35);
+      font-size: 1.3rem;
+      box-shadow: 0 4px 16px var(--shadow);
     }
 
     .brand h1 {
-      font-size: 1.05rem;
+      font-size: 1.1rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      color: var(--text);
     }
 
     .brand p {
@@ -119,178 +147,323 @@
       margin-top: 2px;
     }
 
-    .hero {
-      border-radius: var(--card-radius);
-      border: 1px solid var(--border);
-      padding: 28px 24px 24px;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      transition: background 0.45s ease, border-color 0.45s ease, box-shadow 0.45s ease;
+    /* ── 宠物舞台 ── */
+    .pet-stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       position: relative;
-      overflow: hidden;
+      padding: 12px 0 20px;
+      min-height: 420px;
     }
 
-    .hero::before {
-      content: "";
+    .scene-bg {
       position: absolute;
-      inset: 0;
-      opacity: 0.12;
-      background: radial-gradient(ellipse at top right, #fff, transparent 55%);
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 110%;
+      height: 140px;
+      background: linear-gradient(180deg, transparent, rgba(134, 239, 172, 0.25) 40%, rgba(134, 239, 172, 0.4));
+      border-radius: 50% 50% 0 0 / 30% 30% 0 0;
       pointer-events: none;
     }
 
-    .hero.phase-active {
-      background: linear-gradient(145deg, rgba(34, 197, 94, 0.22), rgba(6, 78, 59, 0.18));
-      border-color: rgba(74, 222, 128, 0.45);
-      box-shadow: 0 0 40px rgba(34, 197, 94, 0.18);
+    .pet-stage.scene-night .scene-bg {
+      background: linear-gradient(180deg, transparent, rgba(221, 214, 254, 0.3) 40%, rgba(196, 181, 253, 0.45));
     }
 
-    .hero.phase-waiting {
-      background: linear-gradient(145deg, rgba(251, 191, 36, 0.24), rgba(120, 53, 15, 0.2));
-      border-color: rgba(251, 191, 36, 0.5);
-      box-shadow: 0 0 36px rgba(245, 158, 11, 0.2);
-      animation: waiting-glow 2.4s ease-in-out infinite;
-    }
-
-    .hero.phase-stopped {
-      background: linear-gradient(145deg, rgba(239, 68, 68, 0.2), rgba(127, 29, 29, 0.18));
-      border-color: rgba(248, 113, 113, 0.45);
-    }
-
-    .hero.phase-idle {
-      background: linear-gradient(145deg, rgba(100, 116, 139, 0.2), rgba(30, 41, 59, 0.22));
-      border-color: rgba(148, 163, 184, 0.3);
-    }
-
-    .hero.phase-unknown {
-      background: linear-gradient(145deg, rgba(167, 139, 250, 0.18), rgba(55, 48, 163, 0.16));
-      border-color: rgba(167, 139, 250, 0.35);
-      border-style: dashed;
-    }
-
-    @keyframes waiting-glow {
-      0%, 100% { box-shadow: 0 0 28px rgba(245, 158, 11, 0.15); }
-      50% { box-shadow: 0 0 48px rgba(245, 158, 11, 0.32); }
-    }
-
-    .hero-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
+    .speech-bubble {
       position: relative;
+      background: var(--card);
+      border-radius: 20px;
+      padding: 12px 18px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      box-shadow: 0 4px 20px var(--shadow);
+      max-width: 90%;
+      text-align: center;
+      margin-bottom: 8px;
+      z-index: 3;
+      animation: bubble-pop 0.4s ease;
     }
 
-    .source-pill {
-      display: inline-flex;
+    .speech-bubble::after {
+      content: "";
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 10px solid transparent;
+      border-top-color: var(--card);
+      border-bottom: 0;
+    }
+
+    .pet-area {
+      position: relative;
+      display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 10px;
-      font-size: 0.95rem;
-      font-weight: 600;
+      z-index: 2;
     }
 
-    .dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .dot.active {
-      background: var(--green);
-      box-shadow: 0 0 12px rgba(74, 222, 128, 0.8);
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-
-    .dot.waiting {
-      background: var(--amber);
-      box-shadow: 0 0 12px rgba(251, 191, 36, 0.75);
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    .dot.stopped { background: var(--red); box-shadow: 0 0 10px rgba(248, 113, 113, 0.55); }
-    .dot.idle { background: var(--slate); }
-    .dot.unknown { background: var(--violet); box-shadow: 0 0 10px rgba(167, 139, 250, 0.45); }
-
-    @keyframes pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.18); opacity: 0.82; }
-    }
-
-    .phase-badge {
-      font-size: 0.82rem;
-      font-weight: 600;
-      padding: 6px 12px;
+    .pet-name-tag {
+      background: var(--card);
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.28);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      white-space: nowrap;
-    }
-
-    .task-title {
-      font-size: clamp(1.55rem, 5.5vw, 2.15rem);
+      padding: 4px 14px;
+      font-size: 0.82rem;
       font-weight: 700;
-      line-height: 1.25;
-      letter-spacing: -0.03em;
-      margin-bottom: 10px;
+      color: var(--text);
+      box-shadow: 0 2px 10px var(--shadow);
+      margin-bottom: 6px;
+      z-index: 4;
+    }
+
+    .pet-container {
+      width: 180px;
+      height: 180px;
       position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .pet-container svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .pet-container.phase-active {
+      animation: pet-bounce 1.2s ease-in-out infinite;
+    }
+
+    .pet-container.phase-waiting {
+      animation: pet-wiggle 0.8s ease-in-out infinite;
+    }
+
+    .pet-container.phase-waiting::before {
+      content: "";
+      position: absolute;
+      inset: -12px;
+      border-radius: 50%;
+      border: 3px solid var(--amber);
+      animation: pulse-ring 2s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    .pet-container.phase-stopped {
+      animation: pet-celebrate 0.6s ease-in-out 3;
+    }
+
+    @keyframes pet-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes pet-wiggle {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-4deg); }
+      75% { transform: rotate(4deg); }
+    }
+
+    @keyframes pet-celebrate {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-12px) scale(1.05); }
+    }
+
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 0.2; transform: scale(1.08); }
+    }
+
+    @keyframes bubble-pop {
+      from { opacity: 0; transform: scale(0.9) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .task-bubble {
+      background: var(--green-bg);
+      border: 2px solid var(--green);
+      border-radius: 16px;
+      padding: 10px 16px;
+      font-size: clamp(0.95rem, 4vw, 1.15rem);
+      font-weight: 600;
+      color: var(--text);
+      max-width: 92%;
+      text-align: center;
+      margin-top: 12px;
       word-break: break-word;
+      z-index: 3;
     }
 
-    .task-meta {
-      font-size: 0.92rem;
-      color: var(--muted);
-      position: relative;
+    .pet-stage.phase-waiting .task-bubble {
+      background: var(--amber-bg);
+      border-color: var(--amber);
     }
 
-    .sources-card {
-      border-radius: var(--card-radius);
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      overflow: hidden;
-    }
-
-    .sources-card h2 {
-      font-size: 0.72rem;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--muted);
-      padding: 14px 18px 8px;
-      font-weight: 600;
-    }
-
-    .source-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 18px;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      gap: 12px;
-    }
-
-    .source-row .left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-weight: 600;
-      font-size: 0.95rem;
-    }
-
-    .source-row .right {
+    .meta-hint {
       font-size: 0.85rem;
       color: var(--muted);
-      text-align: right;
+      margin-top: 10px;
+      text-align: center;
+      z-index: 3;
     }
 
+    /* ── 休息场景 ── */
+    .resting-scene {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 0;
+      min-height: 420px;
+      position: relative;
+    }
+
+    .resting-scene .nest-bg {
+      position: absolute;
+      bottom: 40px;
+      width: 280px;
+      height: 100px;
+      background: linear-gradient(180deg, #d4a574, #b8956a);
+      border-radius: 50% 50% 40% 40%;
+      box-shadow: inset 0 -8px 16px rgba(0,0,0,0.1);
+    }
+
+    .resting-pets {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 8px;
+      z-index: 2;
+      margin-bottom: 20px;
+    }
+
+    .resting-pets svg {
+      width: 72px;
+      height: 72px;
+      opacity: 0.9;
+    }
+
+    .resting-pets svg:nth-child(2) {
+      width: 80px;
+      height: 80px;
+      transform: translateY(-6px);
+    }
+
+    .zzz-bubble {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--muted);
+      animation: zzz-float 2.5s ease-in-out infinite;
+      z-index: 3;
+      margin-bottom: 16px;
+    }
+
+    @keyframes zzz-float {
+      0%, 100% { transform: translateY(0); opacity: 0.7; }
+      50% { transform: translateY(-10px); opacity: 1; }
+    }
+
+    .rest-speech {
+      background: var(--card);
+      border-radius: 20px;
+      padding: 14px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--muted);
+      box-shadow: 0 4px 20px var(--shadow);
+      text-align: center;
+      z-index: 3;
+      margin-top: 12px;
+    }
+
+    /* ── 配对页 ── */
+    .pairing {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 0 24px;
+    }
+
+    .pairing-pets {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .pairing-pets svg {
+      width: 64px;
+      height: 64px;
+      animation: peek 2s ease-in-out infinite;
+    }
+
+    .pairing-pets svg:nth-child(2) { animation-delay: 0.3s; }
+    .pairing-pets svg:nth-child(3) { animation-delay: 0.6s; }
+
+    @keyframes peek {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .pairing-card {
+      background: var(--card);
+      border-radius: 24px;
+      padding: 24px 20px;
+      box-shadow: 0 8px 32px var(--shadow);
+      width: 100%;
+      line-height: 1.65;
+    }
+
+    .pairing-card h2 {
+      font-size: 1.15rem;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .pairing-card > p {
+      font-size: 0.92rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .pairing-card ol {
+      margin: 0 0 0 20px;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .pairing-card li { margin-bottom: 8px; }
+
+    .hint-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: var(--purple-bg);
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .hint-box code {
+      background: rgba(0,0,0,0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    /* ── 页脚 ── */
     .footer {
       margin-top: auto;
       text-align: center;
       font-size: 0.78rem;
       color: var(--muted);
-      padding-top: 8px;
+      padding-top: 12px;
     }
 
     .conn-dot {
@@ -298,135 +471,267 @@
       width: 7px;
       height: 7px;
       border-radius: 50%;
-      margin-right: 6px;
+      margin-right: 4px;
       vertical-align: middle;
-      background: var(--slate);
+      background: var(--muted);
     }
 
-    .conn-dot.live { background: var(--green); box-shadow: 0 0 8px rgba(74, 222, 128, 0.6); }
-    .conn-dot.off { background: var(--red); }
-
-    .pairing {
-      border-radius: var(--card-radius);
-      border: 1px dashed rgba(167, 139, 250, 0.45);
-      background: rgba(167, 139, 250, 0.08);
-      padding: 24px 20px;
-      line-height: 1.6;
+    .conn-dot.live {
+      background: #4ade80;
+      box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
     }
 
-    .pairing h2 {
-      font-size: 1.2rem;
-      margin-bottom: 10px;
-    }
-
-    .pairing ol {
-      margin: 12px 0 0 20px;
-      color: #c4c9d4;
-      font-size: 0.92rem;
-    }
-
-    .pairing li { margin-bottom: 8px; }
-
-    .hint-box {
-      margin-top: 14px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: rgba(0, 0, 0, 0.25);
-      font-size: 0.82rem;
-      color: #a8b0c0;
-    }
+    .conn-dot.off { background: #f87171; }
 
     .hidden { display: none !important; }
+
+    /* SVG 内部动画 */
+    .pet-tail { transform-origin: 80% 80%; animation: tail-wag 0.6s ease-in-out infinite alternate; }
+    .pet-wing { transform-origin: center; animation: wing-flap 0.5s ease-in-out infinite alternate; }
+    .pet-paw { animation: paw-tap 0.4s ease-in-out infinite alternate; }
+
+    @keyframes tail-wag {
+      from { transform: rotate(-8deg); }
+      to { transform: rotate(8deg); }
+    }
+
+    @keyframes wing-flap {
+      from { transform: rotate(-6deg); }
+      to { transform: rotate(6deg); }
+    }
+
+    @keyframes paw-tap {
+      from { transform: translateY(0); }
+      to { transform: translateY(-3px); }
+    }
+
+    .prop-keyboard { opacity: 0; transition: opacity 0.3s; }
+    .phase-active .prop-keyboard { opacity: 1; }
+    .prop-book { opacity: 0; transition: opacity 0.3s; }
+    .phase-active .prop-book { opacity: 1; }
+    .prop-wave { opacity: 0; transition: opacity 0.3s; }
+    .phase-waiting .prop-wave { opacity: 1; }
   </style>
 </head>
 <body>
-  <div class="bg-glow" id="bgGlow"></div>
+  <div class="scene-overlay day" id="sceneOverlay"></div>
 
   <div class="wrap">
     <header class="brand">
-      <div class="brand-mark">V</div>
+      <div class="brand-mark">🐾</div>
       <div>
-        <h1>Vibe Monitor</h1>
-        <p>Agent 状态看板</p>
+        <h1>萌宠看板</h1>
+        <p>Vibe Monitor</p>
       </div>
     </header>
 
+    <!-- 配对页 -->
     <section id="pairingView" class="pairing hidden">
-      <h2>需要配对</h2>
-      <p>在运行 Vibe Monitor 的电脑上：</p>
-      <ol>
-        <li>打开托盘菜单，勾选「启用 iPad 看板」</li>
-        <li>点击「复制看板链接」或扫描二维码</li>
-        <li>用本页打开完整链接（含 <code>token=</code> 参数）</li>
-      </ol>
-      <div class="hint-box">
-        iPad mini 4 无法通过网页保持常亮。请在「设置 → 显示与亮度 → 自动锁定」中选择「永不」，并建议插电使用。
+      <div class="pairing-pets" id="pairingPets"></div>
+      <div class="pairing-card">
+        <h2>要先和电脑做好朋友哦～</h2>
+        <p>在运行 Vibe Monitor 的电脑上：</p>
+        <ol>
+          <li>打开托盘菜单，勾选「启用 iPad 看板」</li>
+          <li>点击「复制看板链接」或扫描二维码</li>
+          <li>用本页打开完整链接（含 <code>token=</code> 参数）</li>
+        </ol>
+        <div class="hint-box">
+          iPad mini 4 无法通过网页保持常亮。请在「设置 → 显示与亮度 → 自动锁定」中选择「永不」，并建议插电使用。
+        </div>
       </div>
     </section>
 
-    <main id="dashboardView" class="hidden">
-      <section class="hero phase-unknown" id="heroCard">
-        <div class="hero-top">
-          <div class="source-pill">
-            <span class="dot unknown" id="heroDot"></span>
-            <span id="heroSource">—</span>
-          </div>
-          <span class="phase-badge" id="heroPhase">未知</span>
+    <!-- 主看板 -->
+    <main id="dashboardView" class="hidden" style="flex:1;display:flex;flex-direction:column;">
+
+      <!-- 宠物舞台（有进行中会话） -->
+      <section id="petStage" class="pet-stage hidden">
+        <div class="scene-bg"></div>
+        <div class="speech-bubble" id="speechBubble">…</div>
+        <div class="pet-area">
+          <div class="pet-name-tag" id="petNameTag">咪咪</div>
+          <div class="pet-container" id="petContainer"></div>
         </div>
-        <div class="task-title" id="heroTitle">等待活动…</div>
-        <div class="task-meta" id="heroMeta">—</div>
+        <div class="task-bubble" id="taskBubble">…</div>
+        <div class="meta-hint" id="metaHint"></div>
       </section>
 
-      <section class="sources-card">
-        <h2>全部来源</h2>
-        <div id="sourceList"></div>
+      <!-- 休息场景（无进行中会话） -->
+      <section id="restingView" class="resting-scene hidden">
+        <div class="zzz-bubble">Zzz</div>
+        <div class="resting-pets" id="restingPets"></div>
+        <div class="nest-bg"></div>
+        <div class="rest-speech">大家都在打盹…呼…</div>
       </section>
+
     </main>
 
     <footer class="footer" id="footer">
       <span class="conn-dot off" id="connDot"></span>
-      <span id="connText">连接中…</span>
+      <span id="connText">🐾 正在找小伙伴…</span>
     </footer>
   </div>
 
   <script>
-    const SOURCE_LABELS = {
-      cursor: "Cursor",
-      claude_code: "Claude Code",
-      codex: "Codex",
-    };
     const SOURCE_ORDER = ["cursor", "claude_code", "codex"];
-    const PHASE_LABELS = {
-      active: "进行中",
-      idle: "空闲",
-      waiting_user: "等待你",
-      stopped: "已结束",
-      unknown: "未知",
-    };
     const IN_PROGRESS = ["active", "waiting_user"];
     const NEAR_DUPLICATE_MS = 2000;
     const DEFAULT_SOURCE = "cursor";
+
+    /** 宠物角色配置 */
+    const PETS = {
+      cursor: { name: "咪咪", color: "#7048e8" },
+      claude_code: { name: "狐狐", color: "#f97316" },
+      codex: { name: "咕咕", color: "#14b8a6" },
+    };
+
+    /** 宠物第一人称语气（按来源 × phase） */
+    const CUTE_SPEECH = {
+      cursor: {
+        active: "键盘敲得噼里啪啦～",
+        waiting_user: "主人～喵需要你！",
+        stopped: "喵！搞定啦～",
+        idle: "在打盹… Zzz",
+        unknown: "耳朵竖起来，等任务中…",
+      },
+      claude_code: {
+        active: "嗯…让我想想怎么写…",
+        waiting_user: "有个问题想问你～",
+        stopped: "完美收工，尾巴摇～",
+        idle: "蜷成一团睡觉中…",
+        unknown: "眼镜推推，等灵感…",
+      },
+      codex: {
+        active: "咕咕！代码在写了！",
+        waiting_user: "咕？等你确认一下！",
+        stopped: "咕咕！任务完成！",
+        idle: "闭上眼，进入待机…",
+        unknown: "咕咕？还没收到信号…",
+      },
+    };
 
     const params = new URLSearchParams(location.search);
     const token = params.get("token");
 
     const pairingView = document.getElementById("pairingView");
     const dashboardView = document.getElementById("dashboardView");
-    const heroCard = document.getElementById("heroCard");
-    const heroDot = document.getElementById("heroDot");
-    const heroSource = document.getElementById("heroSource");
-    const heroPhase = document.getElementById("heroPhase");
-    const heroTitle = document.getElementById("heroTitle");
-    const heroMeta = document.getElementById("heroMeta");
-    const sourceList = document.getElementById("sourceList");
+    const petStage = document.getElementById("petStage");
+    const restingView = document.getElementById("restingView");
+    const petContainer = document.getElementById("petContainer");
+    const petNameTag = document.getElementById("petNameTag");
+    const speechBubble = document.getElementById("speechBubble");
+    const taskBubble = document.getElementById("taskBubble");
+    const metaHint = document.getElementById("metaHint");
     const connDot = document.getElementById("connDot");
     const connText = document.getElementById("connText");
-    const bgGlow = document.getElementById("bgGlow");
+    const sceneOverlay = document.getElementById("sceneOverlay");
+    const pairingPets = document.getElementById("pairingPets");
+    const restingPets = document.getElementById("restingPets");
 
     let es = null;
     let pollTimer = null;
     let wakeLock = null;
     let lastUpdate = null;
+
+    /* ── SVG 宠物渲染 ── */
+
+    /** 渲染小猫（咪咪） */
+    function svgCat(phase) {
+      const sleeping = phase === "idle" || phase === "stopped";
+      const eyes = sleeping
+        ? '<path d="M58 72 Q62 76 66 72" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+          + '<path d="M82 72 Q86 76 90 72" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+        : '<circle cx="62" cy="72" r="5" fill="#4a3f55"/><circle cx="86" cy="72" r="5" fill="#4a3f55"/>'
+          + '<circle cx="64" cy="70" r="2" fill="#fff"/><circle cx="88" cy="70" r="2" fill="#fff"/>';
+      const wavePaw = phase === "waiting_user"
+        ? '<g class="prop-wave"><ellipse cx="118" cy="100" rx="10" ry="8" fill="#fbcfe8" stroke="#7048e8" stroke-width="1.5"/><text x="118" y="104" text-anchor="middle" font-size="10">🐾</text></g>'
+        : "";
+      const keyboard = phase === "active"
+        ? '<g class="prop-keyboard"><rect x="30" y="130" width="90" height="20" rx="4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1"/><rect x="36" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="48" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="60" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="72" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="84" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="96" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="108" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/></g>'
+        : "";
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
+        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
+        + '<path class="pet-tail" d="M120 110 Q145 90 140 70 Q135 100 120 110" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
+        + '<ellipse cx="75" cy="100" rx="42" ry="38" fill="#fbcfe8" stroke="#7048e8" stroke-width="2.5"/>'
+        + '<polygon points="45,68 38,48 55,62" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
+        + '<polygon points="105,68 112,48 95,62" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
+        + '<ellipse cx="75" cy="62" rx="32" ry="28" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
+        + eyes
+        + '<ellipse cx="75" cy="82" rx="4" ry="3" fill="#f472b6"/>'
+        + '<path d="M73 86 Q75 90 77 86" stroke="#7048e8" stroke-width="1.5" fill="none"/>'
+        + '<path d="M60 55 Q75 48 90 55" stroke="#7048e8" stroke-width="1.5" fill="none"/>'
+        + '<ellipse cx="75" cy="108" rx="18" ry="14" fill="#fff" opacity="0.5"/>'
+        + '<circle cx="75" cy="118" r="8" fill="none" stroke="#7048e8" stroke-width="2"/>'
+        + wavePaw + keyboard
+        + '</svg>';
+    }
+
+    /** 渲染小狐狸（狐狐） */
+    function svgFox(phase) {
+      const sleeping = phase === "idle" || phase === "stopped";
+      const eyes = sleeping
+        ? '<path d="M58 74 Q62 78 66 74" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+          + '<path d="M84 74 Q88 78 92 74" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+        : '<circle cx="62" cy="74" r="4.5" fill="#4a3f55"/><circle cx="88" cy="74" r="4.5" fill="#4a3f55"/>';
+      const book = phase === "active"
+        ? '<g class="prop-book"><rect x="28" y="128" width="30" height="22" rx="2" fill="#fef3c7" stroke="#f97316" stroke-width="1.5"/><line x1="33" y1="134" x2="52" y2="134" stroke="#f97316" stroke-width="1"/><line x1="33" y1="140" x2="48" y2="140" stroke="#f97316" stroke-width="1"/></g>'
+        : "";
+      const wavePaw = phase === "waiting_user"
+        ? '<g class="prop-wave"><text x="120" y="100" font-size="16">❓</text></g>'
+        : "";
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
+        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
+        + '<path class="pet-tail" d="M115 105 Q150 80 145 55 Q130 90 115 105" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
+        + '<ellipse cx="75" cy="102" rx="40" ry="36" fill="#fb923c" stroke="#ea580c" stroke-width="2.5"/>'
+        + '<polygon points="48,65 40,42 58,58" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
+        + '<polygon points="102,65 110,42 92,58" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
+        + '<ellipse cx="75" cy="64" rx="30" ry="26" fill="#fed7aa" stroke="#ea580c" stroke-width="2"/>'
+        + eyes
+        + '<circle cx="75" cy="84" r="4" fill="#4a3f55"/>'
+        + '<rect x="56" y="58" width="38" height="10" rx="5" fill="none" stroke="#4a3f55" stroke-width="1.5" opacity="0.6"/>'
+        + '<ellipse cx="75" cy="110" rx="16" ry="12" fill="#fff" opacity="0.4"/>'
+        + book + wavePaw
+        + '</svg>';
+    }
+
+    /** 渲染小猫头鹰（咕咕） */
+    function svgOwl(phase) {
+      const sleeping = phase === "idle" || phase === "stopped";
+      const eyes = sleeping
+        ? '<path d="M58 76 Q62 80 66 76" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+          + '<path d="M84 76 Q88 80 92 76" stroke="#4a3f55" stroke-width="2" fill="none"/>'
+        : '<circle cx="62" cy="76" r="10" fill="#fff" stroke="#0d9488" stroke-width="2"/><circle cx="62" cy="76" r="5" fill="#4a3f55"/>'
+          + '<circle cx="88" cy="76" r="10" fill="#fff" stroke="#0d9488" stroke-width="2"/><circle cx="88" cy="76" r="5" fill="#4a3f55"/>';
+      const wings = phase === "active"
+        ? '<g class="pet-wing"><ellipse cx="30" cy="105" rx="14" ry="22" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" transform="rotate(-15 30 105)"/></g>'
+          + '<g class="pet-wing"><ellipse cx="120" cy="105" rx="14" ry="22" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" transform="rotate(15 120 105)"/></g>'
+        : '<ellipse cx="30" cy="105" rx="12" ry="18" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" opacity="0.6"/>'
+          + '<ellipse cx="120" cy="105" rx="12" ry="18" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" opacity="0.6"/>';
+      const wavePaw = phase === "waiting_user"
+        ? '<g class="prop-wave"><text x="75" y="50" text-anchor="middle" font-size="18">❗</text></g>'
+        : "";
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
+        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
+        + wings
+        + '<ellipse cx="75" cy="100" rx="38" ry="40" fill="#99f6e4" stroke="#0d9488" stroke-width="2.5"/>'
+        + '<polygon points="75,55 60,72 90,72" fill="#5eead4" stroke="#0d9488" stroke-width="2"/>'
+        + eyes
+        + '<polygon points="75,88 70,94 80,94" fill="#f97316"/>'
+        + '<path d="M68 96 Q75 100 82 96" stroke="#0d9488" stroke-width="1.5" fill="none"/>'
+        + wavePaw
+        + '</svg>';
+    }
+
+    /** 渲染睡眠态迷你宠物 */
+    function svgSleeping(type) {
+      const renderers = { cursor: svgCat, claude_code: svgFox, codex: svgOwl };
+      return renderers[type]("idle");
+    }
+
+    const PET_RENDERERS = { cursor: svgCat, claude_code: svgFox, codex: svgOwl };
+
+    /* ── 状态逻辑 ── */
 
     function phaseClass(phase) {
       switch (phase) {
@@ -484,24 +789,9 @@
       return best ? best.source : null;
     }
 
-    function newestSourceByHealth(snap) {
-      let best = null;
-      for (const source of SOURCE_ORDER) {
-        const last = snap.sources?.[source]?.last_seen;
-        if (!last) continue;
-        const at = new Date(last).getTime();
-        if (!best || at > best.at) best = { source, at };
-      }
-      return best ? best.source : null;
-    }
-
-    function pickDisplaySource(snap) {
-      return (
-        newestSession(snap, (p) => IN_PROGRESS.includes(p)) ||
-        newestSession(snap, () => true) ||
-        newestSourceByHealth(snap) ||
-        DEFAULT_SOURCE
-      );
+    /** 仅返回进行中（active / waiting_user）的来源 */
+    function pickActiveSource(snap) {
+      return newestSession(snap, (p) => IN_PROGRESS.includes(p));
     }
 
     function sessionForSource(snap, source) {
@@ -522,9 +812,9 @@
       if (session?.task_title) return session.task_title;
       if (session?.cwd) return session.cwd;
       if (health?.note) return health.note;
-      if (hookInstalled && phase === "unknown") return "等待活动（已配置 hook）";
-      if (hookInstalled) return "等待活动";
-      return "未配置 hook";
+      if (hookInstalled && phase === "unknown") return "等任务中…";
+      if (hookInstalled) return "等任务中…";
+      return "还没装小天线呢～";
     }
 
     function truncate(str, max) {
@@ -532,62 +822,85 @@
       return str.length <= max ? str : str.slice(0, max) + "…";
     }
 
+    function cuteSpeech(source, phase) {
+      const table = CUTE_SPEECH[source] || CUTE_SPEECH.cursor;
+      return table[phase] || table.unknown;
+    }
+
+    function buildMetaHint(snap, source) {
+      const session = sessionForSource(snap, source);
+      if (session?.last_tool) return "刚刚用了 " + session.last_tool + " 哦 ✨";
+      if (snap.lite_mode) return "省电模式开着，耳朵竖着呢～";
+      return "";
+    }
+
+    /* ── 视图切换 ── */
+
     function setConnected(live, text) {
       connDot.className = "conn-dot " + (live ? "live" : "off");
       connText.textContent = text;
     }
 
-    function updateGlow(phase) {
-      const colors = {
-        active: ["rgba(74,222,128,0.5)", "rgba(34,197,94,0.3)"],
-        waiting_user: ["rgba(251,191,36,0.55)", "rgba(245,158,11,0.28)"],
-        stopped: ["rgba(248,113,113,0.45)", "rgba(239,68,68,0.22)"],
-        idle: ["rgba(148,163,184,0.35)", "rgba(100,116,139,0.2)"],
-        unknown: ["rgba(167,139,250,0.45)", "rgba(107,114,128,0.22)"],
-      };
-      const [a, b] = colors[phase] || colors.unknown;
-      bgGlow.style.setProperty("--glow-a", a);
-      bgGlow.style.setProperty("--glow-b", b);
+    function updateScene(mode) {
+      if (mode === "night") {
+        sceneOverlay.className = "scene-overlay night";
+      } else {
+        sceneOverlay.className = "scene-overlay day";
+      }
+    }
+
+    function showPetStage(source) {
+      petStage.classList.remove("hidden");
+      restingView.classList.add("hidden");
+      updateScene("day");
+    }
+
+    function showRestingView() {
+      petStage.classList.add("hidden");
+      restingView.classList.remove("hidden");
+      updateScene("night");
+      if (!restingPets.children.length) {
+        restingPets.innerHTML = SOURCE_ORDER.map((s) => svgSleeping(s)).join("");
+      }
+    }
+
+    /** 渲染宠物角色到舞台 */
+    function renderPet(source, phase, task, meta) {
+      const pet = PETS[source] || PETS.cursor;
+      const renderer = PET_RENDERERS[source] || svgCat;
+      const pc = phaseClass(phase);
+
+      petNameTag.textContent = pet.name;
+      petNameTag.style.borderLeft = "3px solid " + pet.color;
+      petContainer.innerHTML = renderer(phase);
+      petContainer.className = "pet-container phase-" + pc;
+      petStage.className = "pet-stage phase-" + pc;
+
+      speechBubble.textContent = cuteSpeech(source, phase);
+      taskBubble.textContent = truncate(task, 80) || "等任务中…";
+      metaHint.textContent = meta;
     }
 
     function render(snap) {
       if (!snap) return;
       lastUpdate = new Date();
-      const displaySource = pickDisplaySource(snap);
-      const phase = currentPhase(snap, displaySource);
-      const pc = phaseClass(phase);
+      const activeSource = pickActiveSource(snap);
 
-      heroCard.className = "hero phase-" + pc;
-      heroDot.className = "dot " + pc;
-      heroSource.textContent = SOURCE_LABELS[displaySource] || displaySource;
-      heroPhase.textContent = PHASE_LABELS[phase] || phase;
-
-      const session = sessionForSource(snap, displaySource);
-      const detail = detailForSource(snap, displaySource);
-      heroTitle.textContent = truncate(detail, 80) || "等待活动…";
-      heroMeta.textContent = session?.last_tool
-        ? "最近工具 · " + session.last_tool
-        : snap.lite_mode ? "轻量模式已开启" : "Hook 监听";
-
-      updateGlow(phase);
-
-      sourceList.innerHTML = SOURCE_ORDER.map((source) => {
-        const p = currentPhase(snap, source);
-        const cls = phaseClass(p);
-        const label = PHASE_LABELS[p] || p;
-        const sub = truncate(detailForSource(snap, source), 28);
-        return (
-          '<div class="source-row">' +
-            '<div class="left"><span class="dot ' + cls + '"></span>' +
-            (SOURCE_LABELS[source] || source) + '</div>' +
-            '<div class="right">' + label + '<br><span style="opacity:0.75">' + sub + '</span></div>' +
-          '</div>'
-        );
-      }).join("");
+      if (!activeSource) {
+        showRestingView();
+      } else {
+        showPetStage(activeSource);
+        const phase = currentPhase(snap, activeSource);
+        const task = detailForSource(snap, activeSource);
+        const meta = buildMetaHint(snap, activeSource);
+        renderPet(activeSource, phase, task, meta);
+      }
 
       const time = lastUpdate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      setConnected(true, "已连接 · " + time);
+      setConnected(true, "💚 连着呢 · " + time);
     }
+
+    /* ── 网络连接 ── */
 
     async function fetchStatus() {
       const q = token ? "?token=" + encodeURIComponent(token) : "";
@@ -603,7 +916,7 @@
           const snap = await fetchStatus();
           render(snap);
         } catch {
-          setConnected(false, "已断开 · 轮询失败");
+          setConnected(false, "💔 断开了 · 轮询失败");
         }
       }, 5000);
     }
@@ -627,7 +940,7 @@
       es = new EventSource("/api/stream" + q);
       es.onopen = () => {
         stopPolling();
-        setConnected(true, "实时连接中…");
+        setConnected(true, "💚 实时连接中…");
         requestWakeLock();
       };
       es.onmessage = (ev) => {
@@ -638,7 +951,7 @@
       es.onerror = () => {
         es.close();
         es = null;
-        setConnected(false, "已断开 · 正在重连…");
+        setConnected(false, "💔 断开了 · 正在重连…");
         startPolling();
         setTimeout(connectSSE, 3000);
       };
@@ -647,7 +960,7 @@
     function showPairing() {
       pairingView.classList.remove("hidden");
       dashboardView.classList.add("hidden");
-      setConnected(false, "未配对");
+      setConnected(false, "🐾 还没配对呢");
     }
 
     function showDashboard() {
@@ -656,6 +969,11 @@
     }
 
     async function init() {
+      pairingPets.innerHTML = SOURCE_ORDER.map((s) => {
+        const r = PET_RENDERERS[s] || svgCat;
+        return r("unknown");
+      }).join("");
+
       if (!token) {
         showPairing();
         return;
@@ -668,10 +986,9 @@
       } catch (e) {
         if (String(e).includes("401")) {
           showPairing();
-          heroTitle.textContent = "token 无效或已过期";
           return;
         }
-        setConnected(false, "连接失败 · 请检查 WiFi 与电脑看板开关");
+        setConnected(false, "😿 连接失败 · 请检查 WiFi 与电脑看板开关");
         startPolling();
       }
 
