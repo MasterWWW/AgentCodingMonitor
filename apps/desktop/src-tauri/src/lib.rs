@@ -77,13 +77,36 @@ fn reload_server(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 获取当前局域网看板主链接（启用且有私网 IP 时）。
+/// 获取当前局域网看板主链接（启用且有可用 IP 时）。
 fn companion_primary_url(port: u16) -> Option<String> {
     if !state::load_lan_companion_enabled() {
         return None;
     }
     let token = state::load_lan_companion_token()?;
-    lan::companion_urls(port, &token).into_iter().next()
+    lan::companion_primary_url(port, &token)
+}
+
+/// 链路本地地址（169.254.x.x）回退时的托盘警告文案。
+fn companion_link_local_warning() -> &'static str {
+    "\n\n⚠ 未检测到正常局域网 IP（192.168/10.x），当前为链路本地地址，iPad 可能无法连接。请检查 WiFi 连接或禁用多余虚拟网卡。"
+}
+
+/// 组装看板链接提示文案（含多地址列表与链路本地警告）。
+fn companion_url_message(prefix: &str, port: u16, url: &str) -> String {
+    let token = state::load_lan_companion_token().unwrap_or_default();
+    let all_urls = lan::companion_urls(port, &token);
+    let mut msg = format!("{prefix}\n\n{url}");
+    if all_urls.len() > 1 {
+        msg.push_str("\n\n其他可用地址：\n");
+        for alt in all_urls.iter().skip(1) {
+            msg.push_str(alt);
+            msg.push('\n');
+        }
+    }
+    if lan::companion_uses_link_local_fallback() {
+        msg.push_str(companion_link_local_warning());
+    }
+    msg
 }
 
 /// 复制看板链接到剪贴板。
@@ -101,7 +124,10 @@ fn copy_companion_url(app: &AppHandle) {
         return;
     };
     match arboard::Clipboard::new().and_then(|mut c| c.set_text(&url)) {
-        Ok(()) => show_message("iPad 看板", &format!("已复制链接：\n{url}")),
+        Ok(()) => show_message(
+            "iPad 看板",
+            &companion_url_message("已复制链接：", port, &url),
+        ),
         Err(e) => show_message("复制失败", &e.to_string()),
     }
 }
@@ -136,7 +162,10 @@ fn show_companion_qr(app: &AppHandle) {
     let _ = open::that(&path);
     show_message(
         "iPad 看板",
-        &format!("请用 iPad 相机扫描二维码，或在 Safari 打开：\n\n{url}\n\n二维码图片已打开。"),
+        &format!(
+            "{}\n\n二维码图片已打开。",
+            companion_url_message("请用 iPad 相机扫描二维码，或在 Safari 打开：", port, &url)
+        ),
     );
 }
 

@@ -173,8 +173,9 @@ Axum 通过 `ConnectInfo<SocketAddr>` 或 `tower::util::MapRequest` 注入客户
 }
 ```
 
-- `urls`：枚举非 loopback 的 IPv4 私网地址（`192.168.x.x`、`10.x.x.x`、`172.16–31.x.x`）
-- 实现：依赖 `if-addrs` 或 `local-ip-address` crate 扫描接口
+- `urls`：枚举非 loopback 的 IPv4 配对地址，**RFC1918 私网优先**（`192.168.x.x`、`10.x.x.x`、`172.16–31.x.x`），按数值升序排列；仅当无私网地址时才回退到链路本地（`169.254.x.x`，APIPA）
+- 二维码/剪贴板取 `urls` 首项（首选 IP）；完整列表供手动选择
+- 实现：依赖 `if-addrs` crate 扫描接口，`lan::prioritize_companion_ips` 负责排序
 
 ### `GET /api/display`（可选，建议做）
 
