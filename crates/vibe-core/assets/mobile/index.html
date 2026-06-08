@@ -10,12 +10,13 @@
   <style>
     :root {
       color-scheme: light;
-      --bg-top: #fff5f8;
-      --bg-bottom: #f0f4ff;
+      --bg-top: #fff7e8;
+      --bg-bottom: #e8f4ff;
       --text: #4a3f55;
       --muted: #9b8faa;
       --card: #ffffff;
-      --shadow: rgba(155, 143, 170, 0.18);
+      --pixel: #4a3f55;
+      --shadow: rgba(74, 63, 85, 0.34);
       --green: #86efac;
       --green-bg: #ecfdf5;
       --amber: #fcd34d;
@@ -23,20 +24,23 @@
       --purple: #ddd6fe;
       --purple-bg: #f5f3ff;
       --pink: #fbcfe8;
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "Segoe UI", sans-serif;
+      font-family: "Courier New", "Lucida Console", Monaco, monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
       min-height: 100%;
-      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      background:
+        repeating-linear-gradient(0deg, rgba(74, 63, 85, 0.04) 0 2px, transparent 2px 16px),
+        repeating-linear-gradient(90deg, rgba(74, 63, 85, 0.035) 0 2px, transparent 2px 16px),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       color: var(--text);
       -webkit-font-smoothing: antialiased;
     }
 
     body {
-      padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+      padding: max(8px, env(safe-area-inset-top)) 12px max(20px, env(safe-area-inset-bottom));
       overflow-x: hidden;
     }
 
@@ -52,49 +56,50 @@
     .scene-overlay.day::after {
       content: "";
       position: absolute;
-      border-radius: 50%;
-      opacity: 0.5;
+      opacity: 0.8;
     }
 
     .scene-overlay.day::before {
-      width: 120px; height: 60px;
+      width: 32px; height: 16px;
       top: 12%; left: 8%;
-      background: rgba(255, 255, 255, 0.85);
-      border-radius: 60px;
-      box-shadow: 40px 8px 0 -8px rgba(255,255,255,0.7), 80px 4px 0 -12px rgba(255,255,255,0.5);
-      animation: cloud-drift 24s ease-in-out infinite alternate;
+      background: #fff;
+      box-shadow: 16px 0 0 #fff, 32px 0 0 #fff, 8px -16px 0 #fff, 24px -16px 0 #fff;
+      animation: cloud-drift 24s steps(4, end) infinite alternate;
     }
 
     .scene-overlay.day::after {
-      width: 90px; height: 45px;
+      width: 24px; height: 16px;
       top: 18%; right: 12%;
-      background: rgba(255, 255, 255, 0.75);
-      border-radius: 45px;
-      box-shadow: 30px 6px 0 -6px rgba(255,255,255,0.6);
-      animation: cloud-drift 20s ease-in-out infinite alternate-reverse;
+      background: #fff;
+      box-shadow: 16px 0 0 #fff, 8px -16px 0 #fff, 32px 0 0 rgba(255,255,255,0.75);
+      animation: cloud-drift 20s steps(4, end) infinite alternate-reverse;
     }
 
     .scene-overlay.night::before {
-      content: "🌙";
+      content: "";
       position: absolute;
       top: 10%; right: 15%;
-      font-size: 2.5rem;
-      animation: moon-glow 3s ease-in-out infinite;
+      width: 16px;
+      height: 16px;
+      background: #fff4a3;
+      box-shadow: 16px 0 0 #fff4a3, 0 16px 0 #fff4a3, 16px 16px 0 #fff4a3, 32px 16px 0 rgba(255,244,163,0.55);
+      animation: moon-glow 3s steps(2, end) infinite;
     }
 
     .scene-overlay.night::after {
-      content: "✨ ✨ ✨";
+      content: "";
       position: absolute;
       top: 8%; left: 10%;
-      font-size: 0.9rem;
-      letter-spacing: 8px;
-      opacity: 0.7;
-      animation: twinkle 2s ease-in-out infinite alternate;
+      width: 6px;
+      height: 6px;
+      background: #fff;
+      box-shadow: 80px 28px 0 #fff, 150px 4px 0 #fff, 220px 42px 0 #fff;
+      animation: twinkle 2s steps(2, end) infinite alternate;
     }
 
     @keyframes cloud-drift {
       from { transform: translateX(0); }
-      to { transform: translateX(20px); }
+      to { transform: translateX(16px); }
     }
 
     @keyframes moon-glow {
@@ -114,37 +119,7 @@
       margin: 0 auto;
       display: flex;
       flex-direction: column;
-      min-height: calc(100dvh - 40px);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 4px 12px;
-    }
-
-    .brand-mark {
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, #fbcfe8, #ddd6fe);
-      display: grid;
-      place-items: center;
-      font-size: 1.3rem;
-      box-shadow: 0 4px 16px var(--shadow);
-    }
-
-    .brand h1 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .brand p {
-      font-size: 0.78rem;
-      color: var(--muted);
-      margin-top: 2px;
+      min-height: calc(100dvh - 28px);
     }
 
     /* ── 宠物舞台 ── */
@@ -155,8 +130,8 @@
       align-items: center;
       justify-content: center;
       position: relative;
-      padding: 12px 0 20px;
-      min-height: 420px;
+      padding: 0 0 16px;
+      min-height: 470px;
     }
 
     .scene-bg {
@@ -165,28 +140,33 @@
       left: 50%;
       transform: translateX(-50%);
       width: 110%;
-      height: 140px;
-      background: linear-gradient(180deg, transparent, rgba(134, 239, 172, 0.25) 40%, rgba(134, 239, 172, 0.4));
-      border-radius: 50% 50% 0 0 / 30% 30% 0 0;
+      height: 76px;
+      background:
+        repeating-linear-gradient(90deg, rgba(74,63,85,0.08) 0 8px, transparent 8px 16px),
+        linear-gradient(180deg, rgba(134,239,172,0.05) 0 20%, rgba(134,239,172,0.7) 20% 100%);
+      border-top: 4px solid var(--pixel);
       pointer-events: none;
     }
 
     .pet-stage.scene-night .scene-bg {
-      background: linear-gradient(180deg, transparent, rgba(221, 214, 254, 0.3) 40%, rgba(196, 181, 253, 0.45));
+      background:
+        repeating-linear-gradient(90deg, rgba(74,63,85,0.08) 0 8px, transparent 8px 16px),
+        linear-gradient(180deg, rgba(221,214,254,0.05) 0 20%, rgba(196,181,253,0.65) 20% 100%);
     }
 
     .speech-bubble {
       position: relative;
       background: var(--card);
-      border-radius: 20px;
-      padding: 12px 18px;
+      border: 3px solid var(--pixel);
+      border-radius: 4px;
+      padding: 10px 16px;
       font-size: 1rem;
       font-weight: 600;
       color: var(--text);
-      box-shadow: 0 4px 20px var(--shadow);
+      box-shadow: 5px 5px 0 var(--shadow);
       max-width: 90%;
       text-align: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       z-index: 3;
       animation: bubble-pop 0.4s ease;
     }
@@ -194,12 +174,17 @@
     .speech-bubble::after {
       content: "";
       position: absolute;
-      bottom: -10px;
+      bottom: -13px;
       left: 50%;
       transform: translateX(-50%);
-      border: 10px solid transparent;
-      border-top-color: var(--card);
-      border-bottom: 0;
+      width: 14px;
+      height: 14px;
+      background: var(--card);
+      border-right: 3px solid var(--pixel);
+      border-bottom: 3px solid var(--pixel);
+      border-top: 0;
+      border-left: 0;
+      rotate: 45deg;
     }
 
     .pet-area {
@@ -212,19 +197,20 @@
 
     .pet-name-tag {
       background: var(--card);
-      border-radius: 999px;
-      padding: 4px 14px;
+      border: 3px solid var(--pixel);
+      border-radius: 4px;
+      padding: 4px 12px;
       font-size: 0.82rem;
       font-weight: 700;
       color: var(--text);
-      box-shadow: 0 2px 10px var(--shadow);
-      margin-bottom: 6px;
+      box-shadow: 4px 4px 0 var(--shadow);
+      margin-bottom: 8px;
       z-index: 4;
     }
 
     .pet-container {
-      width: 180px;
-      height: 180px;
+      width: min(260px, 62vw);
+      height: min(260px, 62vw);
       position: relative;
       display: flex;
       align-items: center;
@@ -234,28 +220,28 @@
     .pet-container svg {
       width: 100%;
       height: 100%;
+      image-rendering: pixelated;
     }
 
     .pet-container.phase-active {
-      animation: pet-bounce 1.2s ease-in-out infinite;
+      animation: pet-bounce 0.8s steps(2, end) infinite;
     }
 
     .pet-container.phase-waiting {
-      animation: pet-wiggle 0.8s ease-in-out infinite;
+      animation: pet-wiggle 0.8s steps(2, end) infinite;
     }
 
     .pet-container.phase-waiting::before {
       content: "";
       position: absolute;
       inset: -12px;
-      border-radius: 50%;
-      border: 3px solid var(--amber);
-      animation: pulse-ring 2s ease-in-out infinite;
+      border: 4px solid var(--amber);
+      animation: pulse-ring 1s steps(2, end) infinite;
       pointer-events: none;
     }
 
     .pet-container.phase-stopped {
-      animation: pet-celebrate 0.6s ease-in-out 3;
+      animation: pet-celebrate 0.6s steps(2, end) 3;
     }
 
     @keyframes pet-bounce {
@@ -264,9 +250,8 @@
     }
 
     @keyframes pet-wiggle {
-      0%, 100% { transform: rotate(0deg); }
-      25% { transform: rotate(-4deg); }
-      75% { transform: rotate(4deg); }
+      0%, 100% { transform: translateX(0); }
+      50% { transform: translateX(8px); }
     }
 
     @keyframes pet-celebrate {
@@ -280,14 +265,15 @@
     }
 
     @keyframes bubble-pop {
-      from { opacity: 0; transform: scale(0.9) translateY(8px); }
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
       to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
     .task-bubble {
       background: var(--green-bg);
-      border: 2px solid var(--green);
-      border-radius: 16px;
+      border: 3px solid var(--pixel);
+      border-left: 8px solid var(--green);
+      border-radius: 4px;
       padding: 10px 16px;
       font-size: clamp(0.95rem, 4vw, 1.15rem);
       font-weight: 600;
@@ -297,11 +283,13 @@
       margin-top: 12px;
       word-break: break-word;
       z-index: 3;
+      box-shadow: 5px 5px 0 var(--shadow);
     }
 
     .pet-stage.phase-waiting .task-bubble {
       background: var(--amber-bg);
-      border-color: var(--amber);
+      border-color: var(--pixel);
+      border-left-color: var(--amber);
     }
 
     .meta-hint {
@@ -310,6 +298,7 @@
       margin-top: 10px;
       text-align: center;
       z-index: 3;
+      text-shadow: 1px 1px 0 #fff;
     }
 
     /* ── 休息场景 ── */
@@ -319,47 +308,53 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px 0;
-      min-height: 420px;
+      padding: 0 0 20px;
+      min-height: 470px;
       position: relative;
     }
 
-    .resting-scene .nest-bg {
+    .resting-scene::after {
+      content: "";
       position: absolute;
-      bottom: 40px;
-      width: 280px;
-      height: 100px;
-      background: linear-gradient(180deg, #d4a574, #b8956a);
-      border-radius: 50% 50% 40% 40%;
-      box-shadow: inset 0 -8px 16px rgba(0,0,0,0.1);
+      left: 50%;
+      bottom: 28px;
+      transform: translateX(-50%);
+      width: 110%;
+      height: 64px;
+      background:
+        repeating-linear-gradient(90deg, rgba(74,63,85,0.08) 0 8px, transparent 8px 16px),
+        linear-gradient(180deg, rgba(196,181,253,0.12) 0 20%, rgba(196,181,253,0.64) 20% 100%);
+      border-top: 4px solid var(--pixel);
+      z-index: 0;
     }
 
     .resting-pets {
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      gap: 8px;
+      gap: 2px;
       z-index: 2;
       margin-bottom: 20px;
     }
 
     .resting-pets svg {
-      width: 72px;
-      height: 72px;
+      width: 96px;
+      height: 96px;
       opacity: 0.9;
+      image-rendering: pixelated;
     }
 
     .resting-pets svg:nth-child(2) {
-      width: 80px;
-      height: 80px;
-      transform: translateY(-6px);
+      width: 112px;
+      height: 112px;
+      transform: translateY(-10px);
     }
 
     .zzz-bubble {
       font-size: 1.4rem;
       font-weight: 700;
       color: var(--muted);
-      animation: zzz-float 2.5s ease-in-out infinite;
+      animation: zzz-float 2.5s steps(3, end) infinite;
       z-index: 3;
       margin-bottom: 16px;
     }
@@ -371,12 +366,13 @@
 
     .rest-speech {
       background: var(--card);
-      border-radius: 20px;
+      border: 3px solid var(--pixel);
+      border-radius: 4px;
       padding: 14px 20px;
       font-size: 1rem;
       font-weight: 600;
       color: var(--muted);
-      box-shadow: 0 4px 20px var(--shadow);
+      box-shadow: 5px 5px 0 var(--shadow);
       text-align: center;
       z-index: 3;
       margin-top: 12px;
@@ -388,7 +384,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px 0 24px;
+      justify-content: center;
+      padding: 4px 0 24px;
     }
 
     .pairing-pets {
@@ -398,9 +395,10 @@
     }
 
     .pairing-pets svg {
-      width: 64px;
-      height: 64px;
-      animation: peek 2s ease-in-out infinite;
+      width: 84px;
+      height: 84px;
+      image-rendering: pixelated;
+      animation: peek 2s steps(2, end) infinite;
     }
 
     .pairing-pets svg:nth-child(2) { animation-delay: 0.3s; }
@@ -413,9 +411,10 @@
 
     .pairing-card {
       background: var(--card);
-      border-radius: 24px;
+      border: 3px solid var(--pixel);
+      border-radius: 4px;
       padding: 24px 20px;
-      box-shadow: 0 8px 32px var(--shadow);
+      box-shadow: 6px 6px 0 var(--shadow);
       width: 100%;
       line-height: 1.65;
     }
@@ -444,7 +443,8 @@
     .hint-box {
       margin-top: 14px;
       padding: 12px 14px;
-      border-radius: 14px;
+      border: 2px solid var(--pixel);
+      border-radius: 4px;
       background: var(--purple-bg);
       font-size: 0.82rem;
       color: var(--muted);
@@ -463,14 +463,14 @@
       text-align: center;
       font-size: 0.78rem;
       color: var(--muted);
-      padding-top: 12px;
+      padding: 8px 0 0;
+      text-shadow: 1px 1px 0 #fff;
     }
 
     .conn-dot {
       display: inline-block;
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
+      width: 8px;
+      height: 8px;
       margin-right: 4px;
       vertical-align: middle;
       background: var(--muted);
@@ -478,7 +478,7 @@
 
     .conn-dot.live {
       background: #4ade80;
-      box-shadow: 0 0 6px rgba(74, 222, 128, 0.6);
+      box-shadow: 2px 2px 0 rgba(74, 63, 85, 0.2);
     }
 
     .conn-dot.off { background: #f87171; }
@@ -486,9 +486,9 @@
     .hidden { display: none !important; }
 
     /* SVG 内部动画 */
-    .pet-tail { transform-origin: 80% 80%; animation: tail-wag 0.6s ease-in-out infinite alternate; }
-    .pet-wing { transform-origin: center; animation: wing-flap 0.5s ease-in-out infinite alternate; }
-    .pet-paw { animation: paw-tap 0.4s ease-in-out infinite alternate; }
+    .pet-tail { transform-origin: 80% 80%; animation: tail-wag 0.6s steps(2, end) infinite alternate; }
+    .pet-wing { transform-origin: center; animation: wing-flap 0.5s steps(2, end) infinite alternate; }
+    .pet-paw { animation: paw-tap 0.4s steps(2, end) infinite alternate; }
 
     @keyframes tail-wag {
       from { transform: rotate(-8deg); }
@@ -517,14 +517,6 @@
   <div class="scene-overlay day" id="sceneOverlay"></div>
 
   <div class="wrap">
-    <header class="brand">
-      <div class="brand-mark">🐾</div>
-      <div>
-        <h1>萌宠看板</h1>
-        <p>Vibe Monitor</p>
-      </div>
-    </header>
-
     <!-- 配对页 -->
     <section id="pairingView" class="pairing hidden">
       <div class="pairing-pets" id="pairingPets"></div>
@@ -561,7 +553,6 @@
       <section id="restingView" class="resting-scene hidden">
         <div class="zzz-bubble">Zzz</div>
         <div class="resting-pets" id="restingPets"></div>
-        <div class="nest-bg"></div>
         <div class="rest-speech">大家都在打盹…呼…</div>
       </section>
 
@@ -640,29 +631,27 @@
     function svgCat(phase) {
       const sleeping = phase === "idle" || phase === "stopped";
       const eyes = sleeping
-        ? '<path d="M58 72 Q62 76 66 72" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-          + '<path d="M82 72 Q86 76 90 72" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-        : '<circle cx="62" cy="72" r="5" fill="#4a3f55"/><circle cx="86" cy="72" r="5" fill="#4a3f55"/>'
-          + '<circle cx="64" cy="70" r="2" fill="#fff"/><circle cx="88" cy="70" r="2" fill="#fff"/>';
+        ? '<rect x="56" y="70" width="14" height="4" fill="#4a3f55"/><rect x="84" y="70" width="14" height="4" fill="#4a3f55"/>'
+        : '<rect x="58" y="66" width="10" height="12" fill="#4a3f55"/><rect x="86" y="66" width="10" height="12" fill="#4a3f55"/>'
+          + '<rect x="60" y="68" width="3" height="3" fill="#fff"/><rect x="88" y="68" width="3" height="3" fill="#fff"/>';
       const wavePaw = phase === "waiting_user"
-        ? '<g class="prop-wave"><ellipse cx="118" cy="100" rx="10" ry="8" fill="#fbcfe8" stroke="#7048e8" stroke-width="1.5"/><text x="118" y="104" text-anchor="middle" font-size="10">🐾</text></g>'
+        ? '<g class="prop-wave"><rect x="112" y="84" width="14" height="14" fill="#fbcfe8" stroke="#7048e8" stroke-width="3"/><rect x="116" y="78" width="6" height="6" fill="#7048e8"/></g>'
         : "";
       const keyboard = phase === "active"
-        ? '<g class="prop-keyboard"><rect x="30" y="130" width="90" height="20" rx="4" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1"/><rect x="36" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="48" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="60" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="72" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="84" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="96" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/><rect x="108" y="134" width="8" height="6" rx="1" fill="#cbd5e1"/></g>'
+        ? '<g class="prop-keyboard"><rect x="28" y="128" width="96" height="24" fill="#e2e8f0" stroke="#4a3f55" stroke-width="3"/><rect x="36" y="136" width="8" height="6" fill="#94a3b8"/><rect x="50" y="136" width="8" height="6" fill="#94a3b8"/><rect x="64" y="136" width="8" height="6" fill="#94a3b8"/><rect x="78" y="136" width="8" height="6" fill="#94a3b8"/><rect x="92" y="136" width="8" height="6" fill="#94a3b8"/><rect x="106" y="136" width="8" height="6" fill="#94a3b8"/></g>'
         : "";
-      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
-        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
-        + '<path class="pet-tail" d="M120 110 Q145 90 140 70 Q135 100 120 110" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
-        + '<ellipse cx="75" cy="100" rx="42" ry="38" fill="#fbcfe8" stroke="#7048e8" stroke-width="2.5"/>'
-        + '<polygon points="45,68 38,48 55,62" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
-        + '<polygon points="105,68 112,48 95,62" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
-        + '<ellipse cx="75" cy="62" rx="32" ry="28" fill="#fbcfe8" stroke="#7048e8" stroke-width="2"/>'
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">'
+        + '<rect x="34" y="146" width="86" height="8" fill="rgba(74,63,85,0.15)"/>'
+        + '<g class="pet-tail"><rect x="116" y="92" width="18" height="18" fill="#fbcfe8" stroke="#7048e8" stroke-width="3"/><rect x="132" y="76" width="14" height="18" fill="#fbcfe8" stroke="#7048e8" stroke-width="3"/></g>'
+        + '<rect x="38" y="84" width="76" height="54" fill="#fbcfe8" stroke="#7048e8" stroke-width="4"/>'
+        + '<polygon points="44,58 44,34 66,58" fill="#fbcfe8" stroke="#7048e8" stroke-width="4"/>'
+        + '<polygon points="106,58 106,34 84,58" fill="#fbcfe8" stroke="#7048e8" stroke-width="4"/>'
+        + '<rect x="44" y="52" width="62" height="52" fill="#fbcfe8" stroke="#7048e8" stroke-width="4"/>'
         + eyes
-        + '<ellipse cx="75" cy="82" rx="4" ry="3" fill="#f472b6"/>'
-        + '<path d="M73 86 Q75 90 77 86" stroke="#7048e8" stroke-width="1.5" fill="none"/>'
-        + '<path d="M60 55 Q75 48 90 55" stroke="#7048e8" stroke-width="1.5" fill="none"/>'
-        + '<ellipse cx="75" cy="108" rx="18" ry="14" fill="#fff" opacity="0.5"/>'
-        + '<circle cx="75" cy="118" r="8" fill="none" stroke="#7048e8" stroke-width="2"/>'
+        + '<rect x="72" y="82" width="8" height="6" fill="#f472b6"/>'
+        + '<rect x="70" y="92" width="4" height="4" fill="#7048e8"/><rect x="78" y="92" width="4" height="4" fill="#7048e8"/>'
+        + '<rect x="58" y="108" width="34" height="22" fill="#fff" opacity="0.55"/>'
+        + '<rect x="66" y="118" width="18" height="8" fill="none" stroke="#7048e8" stroke-width="3"/>'
         + wavePaw + keyboard
         + '</svg>';
     }
@@ -671,26 +660,26 @@
     function svgFox(phase) {
       const sleeping = phase === "idle" || phase === "stopped";
       const eyes = sleeping
-        ? '<path d="M58 74 Q62 78 66 74" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-          + '<path d="M84 74 Q88 78 92 74" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-        : '<circle cx="62" cy="74" r="4.5" fill="#4a3f55"/><circle cx="88" cy="74" r="4.5" fill="#4a3f55"/>';
+        ? '<rect x="56" y="72" width="14" height="4" fill="#4a3f55"/><rect x="84" y="72" width="14" height="4" fill="#4a3f55"/>'
+        : '<rect x="58" y="68" width="10" height="12" fill="#4a3f55"/><rect x="86" y="68" width="10" height="12" fill="#4a3f55"/>';
       const book = phase === "active"
-        ? '<g class="prop-book"><rect x="28" y="128" width="30" height="22" rx="2" fill="#fef3c7" stroke="#f97316" stroke-width="1.5"/><line x1="33" y1="134" x2="52" y2="134" stroke="#f97316" stroke-width="1"/><line x1="33" y1="140" x2="48" y2="140" stroke="#f97316" stroke-width="1"/></g>'
+        ? '<g class="prop-book"><rect x="24" y="124" width="40" height="28" fill="#fef3c7" stroke="#4a3f55" stroke-width="3"/><rect x="32" y="132" width="22" height="4" fill="#f97316"/><rect x="32" y="140" width="16" height="4" fill="#f97316"/></g>'
         : "";
       const wavePaw = phase === "waiting_user"
-        ? '<g class="prop-wave"><text x="120" y="100" font-size="16">❓</text></g>'
+        ? '<g class="prop-wave"><rect x="116" y="84" width="10" height="18" fill="#4a3f55"/><rect x="116" y="108" width="10" height="8" fill="#4a3f55"/></g>'
         : "";
-      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
-        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
-        + '<path class="pet-tail" d="M115 105 Q150 80 145 55 Q130 90 115 105" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
-        + '<ellipse cx="75" cy="102" rx="40" ry="36" fill="#fb923c" stroke="#ea580c" stroke-width="2.5"/>'
-        + '<polygon points="48,65 40,42 58,58" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
-        + '<polygon points="102,65 110,42 92,58" fill="#fb923c" stroke="#ea580c" stroke-width="2"/>'
-        + '<ellipse cx="75" cy="64" rx="30" ry="26" fill="#fed7aa" stroke="#ea580c" stroke-width="2"/>'
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">'
+        + '<rect x="34" y="146" width="86" height="8" fill="rgba(74,63,85,0.15)"/>'
+        + '<g class="pet-tail"><rect x="110" y="88" width="18" height="22" fill="#fb923c" stroke="#ea580c" stroke-width="3"/><rect x="126" y="66" width="18" height="28" fill="#fb923c" stroke="#ea580c" stroke-width="3"/><rect x="132" y="56" width="12" height="12" fill="#fed7aa"/></g>'
+        + '<rect x="38" y="86" width="76" height="52" fill="#fb923c" stroke="#ea580c" stroke-width="4"/>'
+        + '<polygon points="46,60 46,34 68,60" fill="#fb923c" stroke="#ea580c" stroke-width="4"/>'
+        + '<polygon points="104,60 104,34 82,60" fill="#fb923c" stroke="#ea580c" stroke-width="4"/>'
+        + '<rect x="46" y="56" width="58" height="48" fill="#fb923c" stroke="#ea580c" stroke-width="4"/>'
+        + '<rect x="56" y="76" width="38" height="20" fill="#fed7aa"/>'
         + eyes
-        + '<circle cx="75" cy="84" r="4" fill="#4a3f55"/>'
-        + '<rect x="56" y="58" width="38" height="10" rx="5" fill="none" stroke="#4a3f55" stroke-width="1.5" opacity="0.6"/>'
-        + '<ellipse cx="75" cy="110" rx="16" ry="12" fill="#fff" opacity="0.4"/>'
+        + '<rect x="72" y="84" width="8" height="8" fill="#4a3f55"/>'
+        + '<rect x="54" y="58" width="42" height="12" fill="none" stroke="#4a3f55" stroke-width="3" opacity="0.65"/>'
+        + '<rect x="60" y="108" width="32" height="20" fill="#fff" opacity="0.45"/>'
         + book + wavePaw
         + '</svg>';
     }
@@ -699,26 +688,25 @@
     function svgOwl(phase) {
       const sleeping = phase === "idle" || phase === "stopped";
       const eyes = sleeping
-        ? '<path d="M58 76 Q62 80 66 76" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-          + '<path d="M84 76 Q88 80 92 76" stroke="#4a3f55" stroke-width="2" fill="none"/>'
-        : '<circle cx="62" cy="76" r="10" fill="#fff" stroke="#0d9488" stroke-width="2"/><circle cx="62" cy="76" r="5" fill="#4a3f55"/>'
-          + '<circle cx="88" cy="76" r="10" fill="#fff" stroke="#0d9488" stroke-width="2"/><circle cx="88" cy="76" r="5" fill="#4a3f55"/>';
+        ? '<rect x="54" y="74" width="18" height="4" fill="#4a3f55"/><rect x="84" y="74" width="18" height="4" fill="#4a3f55"/>'
+        : '<rect x="52" y="64" width="22" height="22" fill="#fff" stroke="#0d9488" stroke-width="3"/><rect x="60" y="72" width="8" height="8" fill="#4a3f55"/>'
+          + '<rect x="82" y="64" width="22" height="22" fill="#fff" stroke="#0d9488" stroke-width="3"/><rect x="90" y="72" width="8" height="8" fill="#4a3f55"/>';
       const wings = phase === "active"
-        ? '<g class="pet-wing"><ellipse cx="30" cy="105" rx="14" ry="22" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" transform="rotate(-15 30 105)"/></g>'
-          + '<g class="pet-wing"><ellipse cx="120" cy="105" rx="14" ry="22" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" transform="rotate(15 120 105)"/></g>'
-        : '<ellipse cx="30" cy="105" rx="12" ry="18" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" opacity="0.6"/>'
-          + '<ellipse cx="120" cy="105" rx="12" ry="18" fill="#99f6e4" stroke="#0d9488" stroke-width="1.5" opacity="0.6"/>';
+        ? '<g class="pet-wing"><rect x="24" y="92" width="20" height="38" fill="#99f6e4" stroke="#0d9488" stroke-width="3"/></g>'
+          + '<g class="pet-wing"><rect x="110" y="92" width="20" height="38" fill="#99f6e4" stroke="#0d9488" stroke-width="3"/></g>'
+        : '<rect x="26" y="96" width="18" height="30" fill="#99f6e4" stroke="#0d9488" stroke-width="3" opacity="0.6"/>'
+          + '<rect x="110" y="96" width="18" height="30" fill="#99f6e4" stroke="#0d9488" stroke-width="3" opacity="0.6"/>';
       const wavePaw = phase === "waiting_user"
-        ? '<g class="prop-wave"><text x="75" y="50" text-anchor="middle" font-size="18">❗</text></g>'
+        ? '<g class="prop-wave"><rect x="72" y="34" width="8" height="22" fill="#4a3f55"/><rect x="72" y="62" width="8" height="8" fill="#4a3f55"/></g>'
         : "";
-      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg">'
-        + '<ellipse cx="75" cy="148" rx="40" ry="6" fill="rgba(155,143,170,0.15)"/>'
+      return '<svg viewBox="0 0 150 160" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">'
+        + '<rect x="34" y="146" width="86" height="8" fill="rgba(74,63,85,0.15)"/>'
         + wings
-        + '<ellipse cx="75" cy="100" rx="38" ry="40" fill="#99f6e4" stroke="#0d9488" stroke-width="2.5"/>'
-        + '<polygon points="75,55 60,72 90,72" fill="#5eead4" stroke="#0d9488" stroke-width="2"/>'
+        + '<rect x="42" y="58" width="66" height="78" fill="#99f6e4" stroke="#0d9488" stroke-width="4"/>'
+        + '<polygon points="75,42 56,62 94,62" fill="#5eead4" stroke="#0d9488" stroke-width="4"/>'
         + eyes
-        + '<polygon points="75,88 70,94 80,94" fill="#f97316"/>'
-        + '<path d="M68 96 Q75 100 82 96" stroke="#0d9488" stroke-width="1.5" fill="none"/>'
+        + '<rect x="72" y="88" width="10" height="8" fill="#f97316"/>'
+        + '<rect x="66" y="102" width="22" height="6" fill="#0d9488"/>'
         + wavePaw
         + '</svg>';
     }
