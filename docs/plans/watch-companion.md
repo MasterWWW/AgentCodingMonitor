@@ -21,7 +21,7 @@
 | 手表交互 | 振动 + 标题/摘要 + 最多 2 个主按钮（允许/拒绝） |
 | 回执回传 | 手表 → 手机 DeviceRpc → PC `POST /api/actions/{id}/respond` |
 | 动态寻址 | **不依赖固定 PC IP**；mDNS 服务发现 + 扫码配对兜底 |
-| PC 执行器 MVP | 桌面通知 + 日志记录（半自动） |
+| PC 执行器 MVP | 桌面通知 + **剪贴板预填回复** + 日志（一步到位，半自动） |
 
 ### 非目标（Out of Scope · 首版不做）
 
@@ -96,7 +96,7 @@ flowchart TB
 3. SSE 推送 `action_created` → 手机 Bridge 收到
 4. 手机经 DeviceRpc 转发 `action_prompt` → 手表振动并展示
 5. 用户点选 → 手表 `action_response` → 手机 → PC `POST respond`
-6. `executor` 触发桌面通知「你选择了：允许」并写日志
+6. `executor` 触发桌面通知、将建议回复写入剪贴板，并写日志
 
 ---
 
@@ -254,8 +254,9 @@ PC 在 **启动、LAN 启用、网卡/IP 变化** 时重新注册 mDNS。
 | `action/store.rs` | `PendingAction` 队列、过期、幂等 |
 | `action/trigger.rs` | `waiting_user` → 创建 `binary_choice` |
 | `action/api.rs` | REST 路由 |
-| `executor/mod.rs` | `ActionExecutor` trait |
-| `executor/notify.rs` | MVP：Tauri/系统通知 + 日志 |
+| `executor/mod.rs` | `ActionExecutor` trait + 组合执行链 |
+| `executor/notify.rs` | 桌面通知 + 日志 |
+| `executor/clipboard.rs` | 按选择写入剪贴板（`y`/`n` 等） |
 
 ### 新增 API
 
@@ -267,13 +268,31 @@ PC 在 **启动、LAN 启用、网卡/IP 变化** 时重新注册 mDNS。
 
 写接口安全模型与现有 LAN 看板一致：**非 loopback 的 POST 需 token**（扩展 `lan_guard`）。
 
-### Executor 路线图
+### Executor（MVP 一步到位）
+
+手表回执到达 PC 后，**同时**执行通知与剪贴板（`CompositeExecutor` 串联，不拆阶段）：
+
+| 步骤 | 行为 |
+|------|------|
+| 1 | 桌面通知：「你在手表上选择了：允许」+ 会话摘要 |
+| 2 | 剪贴板：写入该选择对应的建议回复文本 |
+| 3 | 日志：记录 `action_id`、`choice`、`clipboard_text` |
+
+**剪贴板映射（默认，`binary_choice`）**
+
+| 选择 `choice` | 剪贴板内容 | 说明 |
+|---------------|-----------|------|
+| `approve` | `y` | 终端 `(y/n)` 最常见 |
+| `deny` | `n` | 同上 |
+
+通知正文附带：**「建议回复已复制，回到终端粘贴后回车」**。
+
+后续可按 `source` 扩展映射（如 Claude 用 `yes`/`no`），MVP 先统一 `y`/`n`。
 
 | 阶段 | 实现 | 说明 |
 |------|------|------|
-| MVP | `NotifyExecutor` | 桌面通知 + 日志 |
-| V1.1 | `ClipboardExecutor` | 复制建议回复到剪贴板 |
-| V2 | `HookExecutor` | Cursor hook / MCP 程序化注入 |
+| **MVP** | `NotifyExecutor` + `ClipboardExecutor` | 通知 + 剪贴板 + 日志 |
+| V2 | `HookExecutor` | Cursor hook / MCP 程序化注入（真正自动确认） |
 
 ```rust
 trait ActionExecutor {
@@ -281,7 +300,7 @@ trait ActionExecutor {
 }
 ```
 
-按 `source`（cursor / claude / codex）可注册不同执行策略。
+MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换为 `HookExecutor`。
 
 ### 桌面 UI（Tauri）
 
@@ -367,7 +386,7 @@ trait ActionExecutor {
 1. PC 启用 LAN + 手表伴侣，托盘展示二维码；手机扫码配对成功（无需手写 IP）
 2. 路由器 DHCP 刷新导致 PC IP 变化后，手机 **无需重新扫码** 即可自动重连
 3. Cursor Agent 进入 `waiting_user` 后 **10 秒内** 手表振动并显示确认 UI
-4. 手表点「允许」→ PC API 记录回执 → 桌面弹出通知
+4. 手表点「允许」→ PC API 记录回执 → 桌面通知 + 剪贴板已为 `y`
 5. PC 休眠/离线时，手机显示「开发机离线」；唤醒后自动恢复
 6. 动作超时后手表显示过期，PC 侧动作自动清理
 
@@ -384,7 +403,7 @@ trait ActionExecutor {
 | 5 | Android：扫码配对 + mDNS + SSE 连接（日志验证） | Kotlin |
 | 6 | BlueOS：互联 POC + 确认页 UI | JavaScript |
 | 7 | 端到端 yes/no 回传 | 联调 |
-| 8 | `NotifyExecutor` + OriginOS 保活打磨 | Rust + Kotlin |
+| 8 | `NotifyExecutor` + `ClipboardExecutor` + OriginOS 保活打磨 | Rust + Kotlin |
 
 **第 6 步应尽早用 Watch 5 真机验证 DeviceRpc。**
 
@@ -423,7 +442,14 @@ trait ActionExecutor {
 
 ---
 
+## 已确认项
+
+| 项 | 决策 |
+|----|------|
+| 连接 | 同 WiFi + mDNS，不做 Tailscale |
+| Executor MVP | **通知 + 剪贴板** 一步到位（`y`/`n`） |
+| 自动点 IDE | V2 `HookExecutor`，MVP 不做 |
+
 ## 待定项（实现前确认）
 
-1. **Executor MVP**：仅桌面通知，或同时做剪贴板预填？（建议 MVP 通知 + V1.1 剪贴板）
-2. **开关模型**：手表伴侣是否与 `lan_companion` 共用同一开关，还是独立 `watch_companion.enabled`？
+1. **开关模型**：手表伴侣是否与 `lan_companion` 共用同一开关，还是独立 `watch_companion.enabled`？
