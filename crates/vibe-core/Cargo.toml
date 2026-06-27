@@ -19,6 +19,8 @@ notify.workspace = true
 axum.workspace = true
 tower-http.workspace = true
 uuid.workspace = true
+vibe-protocol = { path = "../vibe-protocol" }
+mdns-sd = "0.11"
 async-stream = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 if-addrs = "0.13"
