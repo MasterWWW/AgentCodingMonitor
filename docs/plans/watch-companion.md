@@ -505,5 +505,5 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 | `crates/vibe-protocol` | ✅ 已落地 |
 | `vibe-core` action API + mDNS + `watch_companion` 配置 | ✅ 已落地 |
 | 桌面托盘：手表开关 / 配对二维码 / Executor（通知+剪贴板） | ✅ 已落地 |
-| `apps/bridge-android` | 📋 README 占位 |
+| `apps/bridge-android` | ✅ Kotlin App（mDNS/SSE/通知兜底；vivo SDK 待接 AAR） |
 | `apps/watch-blueos` | 📋 README 占位 |
