@@ -1,0 +1,104 @@
+<template>
+  <div class="page">
+    <text class="title">Vibe 确认</text>
+    <text class="status">{{ statusText }}</text>
+    <text class="hint">{{ hintText }}</text>
+    <text class="source" if="{{ lastSource }}">来源：{{ lastSource }}</text>
+  </div>
+</template>
+
+<style>
+  .page {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-color: #1a1a2e;
+  }
+  .title {
+    font-size: 36px;
+    color: #86efac;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+  .status {
+    font-size: 28px;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .hint {
+    font-size: 22px;
+    color: #9ca3af;
+    text-align: center;
+    lines: 3;
+  }
+  .source {
+    font-size: 20px;
+    color: #6b7280;
+    margin-top: 20px;
+  }
+</style>
+
+<script>
+import { initBridge, closeBridge } from './common/bridge.js'
+import { parseMessage, isActionPrompt, isActionCancelled } from './common/protocol.js'
+import { savePending, loadPending } from './common/storage.js'
+import router from '@system.router'
+
+export default {
+  data: {
+    statusText: '等待手机连接',
+    hintText: '请确保手机已安装 Vibe Bridge 并启动桥接服务',
+    lastSource: ''
+  },
+  onShow() {
+    this.bootstrap()
+  },
+  onHide() {
+    closeBridge()
+  },
+  onDestroy() {
+    closeBridge()
+  },
+  async bootstrap() {
+    const self = this
+    initBridge(function (raw) {
+      self.handlePhoneMessage(raw)
+    })
+    this.statusText = '已连接手机'
+    this.hintText = '等待 Agent 确认请求…'
+
+    const pending = await loadPending()
+    if (pending) {
+      this.openPrompt(pending)
+    }
+  },
+  handlePhoneMessage(raw) {
+    const msg = parseMessage(raw)
+    if (!msg) return
+
+    if (isActionPrompt(msg)) {
+      this.lastSource = (msg.data && msg.data.source) || ''
+      this.openPrompt(msg)
+      return
+    }
+
+    if (isActionCancelled(msg)) {
+      this.statusText = '请求已过期'
+      this.hintText = '可返回等待下一次确认'
+    }
+  },
+  async openPrompt(envelope) {
+    await savePending(envelope)
+    router.push({
+      uri: '/prompt',
+      params: {
+        actionId: envelope.id || (envelope.data && envelope.data.id) || ''
+      }
+    })
+  }
+}
+</script>

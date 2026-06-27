@@ -1,0 +1,39 @@
+{
+  "package": "com.vibemonitor.watch",
+  "name": "Vibe确认",
+  "icon": "/assets/icon.png",
+  "versionName": "0.1.0",
+  "versionCode": 1,
+  "deviceTypeList": ["watch", "watch-round"],
+  "appCategory": ["tool"],
+  "customData": {
+    "phonePackage": "com.vibemonitor.bridge",
+    "phoneFingerprint": ""
+  },
+  "features": [
+    { "name": "blueos.bluexlink.connectionManager" },
+    { "name": "system.router" },
+    { "name": "system.storage" },
+    { "name": "system.prompt" }
+  ],
+  "config": {
+    "logLevel": "debug",
+    "designWidth": 466
+  },
+  "display": {
+    "backgroundColor": "#1A1A2E"
+  },
+  "router": {
+    "entry": "index",
+    "pages": {
+      "index": {
+        "component": "index",
+        "path": "/"
+      },
+      "prompt": {
+        "component": "prompt",
+        "path": "/prompt"
+      }
+    }
+  }
+}

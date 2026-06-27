@@ -13,13 +13,16 @@ use vibe_core::{
     state::{self, HudPresentation},
     store::SessionStore,
     types::{DoctorReport, InstallHooksResult, StatusSnapshot, VibePhase, VibeSource},
+    ActionExecutorEvent, ActionStore,
 };
+use vibe_protocol::ResolvedAction;
 
 const TRAY_ID: &str = "vibe-tray";
 
 struct AppRuntime {
     server: Option<RunningServer>,
     port: u16,
+    executor_task: Option<tauri::async_runtime::JoinHandle<()>>,
 }
 
 struct AppState {
@@ -60,7 +63,7 @@ fn hook_binary_src(app: &AppHandle) -> Option<PathBuf> {
     vibe_core::paths::discover_hook_binary(&hook_search_hints(app))
 }
 
-/// 重载 embedded `vibe-core`（切换局域网看板绑定地址时使用）。
+/// 重载 embedded `vibe-core`（切换局域网/手表伴侣绑定地址时使用）。
 fn reload_server(app: &AppHandle) -> Result<(), String> {
     let state = app.state::<AppState>();
     let hook_src = state.hook_src.lock().unwrap().clone();
@@ -70,10 +73,15 @@ fn reload_server(app: &AppHandle) -> Result<(), String> {
     if let Some(server) = rt.server.take() {
         tauri::async_runtime::block_on(server.stop());
     }
+    if let Some(task) = rt.executor_task.take() {
+        task.abort();
+    }
     let server = tauri::async_runtime::block_on(start(hook_src, hook_hints, lite))
         .map_err(|e| format!("failed to restart server: {e}"))?;
     rt.port = server.port;
+    let action_store = server.action_store.clone();
     rt.server = Some(server);
+    rt.executor_task = Some(spawn_action_executor(app.clone(), action_store));
     Ok(())
 }
 
@@ -186,6 +194,166 @@ fn set_lan_companion_enabled(app: &AppHandle, enabled: bool) {
         copy_companion_url(app);
     }
     refresh_tray_ui(app);
+}
+
+/// 手表伴侣：切换开关并重启 HTTP 服务（注册/注销 mDNS）。
+fn set_watch_companion_enabled(app: &AppHandle, enabled: bool) {
+    if let Err(e) = state::write_watch_companion_enabled(enabled) {
+        show_message("手表伴侣", &e.to_string());
+        return;
+    }
+    if enabled {
+        let _ = state::ensure_watch_token();
+        let _ = state::ensure_device_id();
+    }
+    if let Err(e) = reload_server(app) {
+        show_message("手表伴侣", &e.to_string());
+        return;
+    }
+    if enabled {
+        copy_watch_pairing(app);
+    }
+    refresh_tray_ui(app);
+}
+
+fn choice_label_cn(choice: &str) -> &str {
+    match choice {
+        "approve" => "允许",
+        "deny" => "拒绝",
+        _ => choice,
+    }
+}
+
+/// 收到手表回执后在桌面执行：通知 + 剪贴板预填。
+fn execute_resolved_action(resolved: &ResolvedAction) {
+    if let Some(text) = &resolved.clipboard_text {
+        if let Ok(mut clip) = arboard::Clipboard::new() {
+            let _ = clip.set_text(text);
+        }
+    }
+    let body = format!(
+        "你在手表上选择了：{}\n{}\n\n建议回复已复制，回到终端粘贴后回车",
+        choice_label_cn(&resolved.choice),
+        resolved.title
+    );
+    let _ = notify_rust::Notification::new()
+        .summary("Vibe Monitor · 手表确认")
+        .body(&body)
+        .show();
+}
+
+fn spawn_action_executor(
+    app: AppHandle,
+    action_store: ActionStore,
+) -> tauri::async_runtime::JoinHandle<()> {
+    tauri::async_runtime::spawn(async move {
+        let mut rx = action_store.subscribe_executor();
+        loop {
+            match rx.recv().await {
+                Ok(ActionExecutorEvent::Resolved(resolved)) => {
+                    execute_resolved_action(&resolved);
+                    let _ = app.emit("watch-action-resolved", &resolved);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(_) => break,
+            }
+        }
+    })
+}
+
+/// 复制手表扫码配对 JSON 到剪贴板。
+fn copy_watch_pairing(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    if !state::load_watch_companion_enabled() {
+        show_message(
+            "手表伴侣",
+            "请先启用手表伴侣，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    }
+    let pairing = match state::watch_pairing_payload(port) {
+        Ok(p) => p,
+        Err(e) => {
+            show_message("手表伴侣", &e.to_string());
+            return;
+        }
+    };
+    let json = match serde_json::to_string(&pairing) {
+        Ok(s) => s,
+        Err(e) => {
+            show_message("手表伴侣", &e.to_string());
+            return;
+        }
+    };
+    match arboard::Clipboard::new().and_then(|mut c| c.set_text(&json)) {
+        Ok(()) => show_message(
+            "手表伴侣",
+            &format!(
+                "已复制配对信息到剪贴板。\n\nmDNS 服务：{}\n\n也可使用「显示配对二维码」供 Vibe Bridge 扫码。",
+                pairing
+                    .get("service")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+            ),
+        ),
+        Err(e) => show_message("复制失败", &e.to_string()),
+    }
+}
+
+/// 生成手表配对二维码（JSON）并打开图片。
+fn show_watch_qr(app: &AppHandle) {
+    let port = {
+        let state = app.state::<AppState>();
+        let rt = state.runtime.lock().unwrap();
+        rt.port
+    };
+    if !state::load_watch_companion_enabled() {
+        show_message(
+            "手表伴侣",
+            "请先启用手表伴侣，并确保电脑已连接 WiFi（有局域网 IP）。",
+        );
+        return;
+    }
+    let pairing = match state::watch_pairing_payload(port) {
+        Ok(p) => p,
+        Err(e) => {
+            show_message("手表伴侣", &e.to_string());
+            return;
+        }
+    };
+    let json = match serde_json::to_string(&pairing) {
+        Ok(s) => s,
+        Err(e) => {
+            show_message("手表伴侣", &e.to_string());
+            return;
+        }
+    };
+    let code = match qrcode::QrCode::new(json.as_bytes()) {
+        Ok(c) => c,
+        Err(e) => {
+            show_message("二维码失败", &e.to_string());
+            return;
+        }
+    };
+    let image = code
+        .render::<image::Luma<u8>>()
+        .quiet_zone(true)
+        .min_dimensions(280, 280)
+        .build();
+    let path = std::env::temp_dir().join("vibe-monitor-watch-qr.png");
+    if let Err(e) = image.save(&path) {
+        show_message("二维码失败", &e.to_string());
+        return;
+    }
+    let _ = open::that(&path);
+    show_message(
+        "手表伴侣",
+        "二维码图片已打开。请用 Vibe Bridge（手机 App）扫描配对。\n\n配对后手机将通过 mDNS 自动发现本机，无需固定 IP。",
+    );
 }
 
 #[tauri::command]
@@ -321,6 +489,7 @@ struct DisplaySettingsResponse {
     float_hud: bool,
     tray_status: bool,
     lan_companion: bool,
+    watch_companion: bool,
 }
 
 #[tauri::command]
@@ -330,6 +499,7 @@ fn get_display_settings() -> DisplaySettingsResponse {
         float_hud: display.float_hud,
         tray_status: display.tray_status,
         lan_companion: state::load_lan_companion_enabled(),
+        watch_companion: state::load_watch_companion_enabled(),
     }
 }
 
@@ -606,6 +776,7 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
     let default_codex =
         MenuItem::with_id(app, "default_codex", "设为默认 · Codex", true, None::<&str>)?;
     let lan_enabled = state::load_lan_companion_enabled();
+    let watch_enabled = state::load_watch_companion_enabled();
     let sep_display = PredefinedMenuItem::separator(app)?;
     let display_float = CheckMenuItem::with_id(
         app,
@@ -640,6 +811,35 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
         lan_enabled,
         None::<&str>,
     )?;
+    let display_watch = CheckMenuItem::with_id(
+        app,
+        "display_watch",
+        "手表伴侣",
+        true,
+        watch_enabled,
+        None::<&str>,
+    )?;
+    let watch_copy = MenuItem::with_id(
+        app,
+        "watch_copy",
+        "复制手表配对",
+        watch_enabled,
+        None::<&str>,
+    )?;
+    let watch_qr = MenuItem::with_id(
+        app,
+        "watch_qr",
+        "显示手表配对二维码",
+        watch_enabled,
+        None::<&str>,
+    )?;
+    let watch_rotate = MenuItem::with_id(
+        app,
+        "watch_rotate",
+        "重新生成手表 token",
+        watch_enabled,
+        None::<&str>,
+    )?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
     Menu::with_items(
@@ -664,6 +864,10 @@ fn build_tray_menu(app: &AppHandle, snap: &StatusSnapshot) -> tauri::Result<Menu
             &lan_copy,
             &lan_qr,
             &lan_rotate,
+            &display_watch,
+            &watch_copy,
+            &watch_qr,
+            &watch_rotate,
             &sep2,
             &quit,
         ],
@@ -711,6 +915,9 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
         }
         "display_lan" => {
             set_lan_companion_enabled(app, !state::load_lan_companion_enabled());
+        }
+        "display_watch" => {
+            set_watch_companion_enabled(app, !state::load_watch_companion_enabled());
         }
         "quit" => app.exit(0),
         "fix" => {
@@ -781,6 +988,20 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
             } else {
                 show_message("iPad 看板", "已重新生成 token，旧链接已失效。正在复制新链接…");
                 copy_companion_url(app);
+            }
+            refresh_tray_ui(app);
+        }
+        "watch_copy" => copy_watch_pairing(app),
+        "watch_qr" => show_watch_qr(app),
+        "watch_rotate" => {
+            if let Err(e) = state::rotate_watch_token() {
+                show_message("手表伴侣", &e.to_string());
+            } else {
+                show_message(
+                    "手表伴侣",
+                    "已重新生成手表 token，旧配对已失效。正在复制新配对…",
+                );
+                copy_watch_pairing(app);
             }
             refresh_tray_ui(app);
         }
@@ -918,10 +1139,13 @@ pub fn run() {
                     .map_err(|e| format!("failed to start server: {e}"))?;
 
             let port = server.port;
+            let action_store = server.action_store.clone();
+            let executor_task = spawn_action_executor(app.handle().clone(), action_store);
             app.manage(AppState {
                 runtime: Mutex::new(AppRuntime {
                     server: Some(server),
                     port,
+                    executor_task: Some(executor_task),
                 }),
                 hook_src: Mutex::new(hook_src),
                 hook_search_hints: Mutex::new(hook_hints),

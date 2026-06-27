@@ -1,0 +1,153 @@
+<template>
+  <div class="page">
+    <text class="badge">{{ sourceLabel }}</text>
+    <text class="title">{{ title }}</text>
+    <text class="body">{{ body }}</text>
+    <div class="actions">
+      <input type="button" class="btn btn-approve" value="{{ approveLabel }}" onclick="onApprove" />
+      <input type="button" class="btn btn-deny" value="{{ denyLabel }}" onclick="onDeny" />
+    </div>
+    <text class="footer" if="{{ expired }}">已超时</text>
+  </div>
+</template>
+
+<style>
+  .page {
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    background-color: #111827;
+  }
+  .badge {
+    font-size: 20px;
+    color: #fcd34d;
+    margin-bottom: 8px;
+  }
+  .title {
+    font-size: 30px;
+    color: #ffffff;
+    font-weight: 600;
+    text-align: center;
+    lines: 2;
+    margin-bottom: 10px;
+  }
+  .body {
+    font-size: 22px;
+    color: #d1d5db;
+    text-align: center;
+    lines: 4;
+    margin-bottom: 20px;
+  }
+  .actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+  }
+  .btn {
+    width: 88%;
+    height: 72px;
+    font-size: 28px;
+    border-radius: 36px;
+    margin-bottom: 12px;
+    color: #ffffff;
+  }
+  .btn-approve {
+    background-color: #16a34a;
+  }
+  .btn-deny {
+    background-color: #dc2626;
+  }
+  .footer {
+    font-size: 20px;
+    color: #f87171;
+    margin-top: 8px;
+  }
+</style>
+
+<script>
+import { sendToPhone } from './common/bridge.js'
+import {
+  buildActionResponse,
+  pickButtons,
+  isExpired,
+  parseMessage
+} from './common/protocol.js'
+import { loadPending, clearPending } from './common/storage.js'
+import router from '@system.router'
+import prompt from '@system.prompt'
+
+export default {
+  data: {
+    actionId: '',
+    sourceLabel: 'Agent',
+    title: '等待确认',
+    body: '',
+    approveLabel: '允许',
+    denyLabel: '拒绝',
+    approveId: 'approve',
+    denyId: 'deny',
+    expired: false
+  },
+  onInit() {
+    // router.push params 会注入 actionId（可选）
+  },
+  async onShow() {
+    await this.loadAction()
+  },
+  async loadAction() {
+    const envelope = await loadPending()
+    if (!envelope) {
+      this.title = '无待处理请求'
+      this.expired = true
+      return
+    }
+
+    const data = envelope.data || envelope
+    this.actionId = envelope.id || data.id || this.actionId
+    this.sourceLabel = data.source || 'Agent'
+    this.title = data.title || '需要你的确认'
+    this.body = data.body || ''
+    this.expired = isExpired(data.expires_at)
+
+    const buttons = pickButtons(data)
+    this.approveLabel = buttons.approve.label
+    this.denyLabel = buttons.deny.label
+    this.approveId = buttons.approve.id
+    this.denyId = buttons.deny.id
+
+    if (this.expired) {
+      this.title = '请求已超时'
+    }
+  },
+  onApprove() {
+    this.submitChoice(this.approveId)
+  },
+  onDeny() {
+    this.submitChoice(this.denyId)
+  },
+  async submitChoice(choice) {
+    if (this.expired) {
+      prompt.showToast({ message: '已超时' })
+      router.back()
+      return
+    }
+    if (!this.actionId) {
+      prompt.showToast({ message: '无效请求' })
+      router.back()
+      return
+    }
+
+    const response = buildActionResponse(this.actionId, choice)
+    try {
+      await sendToPhone(response)
+      prompt.showToast({ message: '已发送' })
+      await clearPending()
+      router.back()
+    } catch (e) {
+      prompt.showToast({ message: '发送失败' })
+    }
+  }
+}
+</script>

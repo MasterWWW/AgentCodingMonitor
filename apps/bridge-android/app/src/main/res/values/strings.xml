@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Vibe Bridge</string>
+    <string name="service_channel_name">Vibe Bridge 连接</string>
+    <string name="service_channel_desc">与开发机保持同步，转发 Agent 确认到手表</string>
+    <string name="service_notification_title">Vibe Bridge 运行中</string>
+    <string name="action_channel_name">Agent 待确认</string>
+    <string name="action_channel_desc">AI Agent 需要你确认的操作</string>
+</resources>

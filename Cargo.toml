@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/vibe-protocol",
     "crates/vibe-core",
     "crates/vibe-hook",
     "apps/desktop/src-tauri",
