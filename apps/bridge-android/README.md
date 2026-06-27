@@ -65,6 +65,10 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 5. 完善 `watch/VivoWatchRelay.kt` 中的 `DeviceRpcManager` 调用
 6. 手机安装 **vivo 运动健康**
 
+手机包名 `com.vibemonitor.bridge` 需与手表 `manifest.json` 中 `customData.phonePackage` 一致。
+
+手表 BlueOS App 见 `apps/watch-blueos/README.md`。
+
 ## OriginOS 建议
 
 - 允许 **自启动**、**后台运行**、**电池优化无限制**

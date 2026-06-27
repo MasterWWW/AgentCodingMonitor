@@ -16,6 +16,7 @@ import com.vibemonitor.bridge.network.WatchStreamCallbacks
 import com.vibemonitor.bridge.network.WatchStreamClient
 import com.vibemonitor.bridge.watch.LogWatchRelay
 import com.vibemonitor.bridge.watch.VivoWatchRelay
+import com.vibemonitor.bridge.watch.WatchMessageParser
 import com.vibemonitor.bridge.watch.WatchRelay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,7 +26,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.json.JSONObject
 
 /**
  * 前台服务：mDNS 发现 → SSE → 转发手表 / 手机通知兜底。
@@ -76,7 +76,7 @@ class BridgeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun selectWatchRelay(): WatchRelay {
-        val vivo = VivoWatchRelay(this)
+        val vivo = VivoWatchRelay()
         return if (vivo.isAvailable()) vivo else LogWatchRelay()
     }
 
@@ -158,13 +158,21 @@ class BridgeService : Service() {
     private fun handleWatchResponse(json: String) {
         scope.launch {
             runCatching {
-                val root = JSONObject(json)
-                val data = root.getJSONObject("data")
-                val actionId = data.getString("action_id")
-                val choice = data.getString("choice")
+                val parsed = WatchMessageParser.parseResponse(json)
+                if (parsed != null) {
+                    BridgeRuntime.respond(parsed.actionId, parsed.choice, parsed.from)
+                    BridgeRuntime.decrementPending()
+                    return@launch
+                }
+                val root = org.json.JSONObject(json)
+                val data = root.optJSONObject("data") ?: root
+                val actionId = data.optString("action_id", data.optString("actionId"))
+                val choice = data.optString("choice")
                 val from = data.optString("from", "watch")
-                BridgeRuntime.respond(actionId, choice, from)
-                BridgeRuntime.decrementPending()
+                if (actionId.isNotBlank() && choice.isNotBlank()) {
+                    BridgeRuntime.respond(actionId, choice, from)
+                    BridgeRuntime.decrementPending()
+                }
             }.onFailure { e ->
                 Log.w(TAG, "watch response failed", e)
             }

@@ -1,0 +1,6 @@
+{
+  "name": "vibe-watch",
+  "version": "0.1.0",
+  "description": "Vibe Monitor watch companion for Agent confirmations",
+  "private": true
+}
