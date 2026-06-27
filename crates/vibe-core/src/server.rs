@@ -1,8 +1,10 @@
 use crate::api::{router, AppState};
+use crate::discovery::MdnsRegistrar;
+use crate::action::ActionStore;
 use crate::install::sync_hook_health_from_disk;
 use crate::lite::spawn_lite_watcher;
 use crate::paths::{read_port, write_port};
-use crate::state::load_lan_companion_enabled;
+use crate::state::lan_bind_enabled;
 use crate::store::SessionStore;
 use anyhow::Result;
 use std::net::{IpAddr, SocketAddr};
@@ -15,7 +17,9 @@ const MAX_PORT_TRIES: u16 = 5;
 pub struct RunningServer {
     pub port: u16,
     pub store: SessionStore,
+    pub action_store: ActionStore,
     shutdown: tokio::sync::oneshot::Sender<()>,
+    _mdns: Option<MdnsRegistrar>,
 }
 
 impl RunningServer {
@@ -32,12 +36,14 @@ pub async fn start(
     let port = bind_port().await?;
     write_port(port)?;
     let store = SessionStore::new(port);
+    let action_store = ActionStore::new();
     store.set_lite_mode(lite_enabled).await;
     sync_hook_health_from_disk(&store).await;
     spawn_lite_watcher(store.clone());
 
     let state = AppState {
         store: store.clone(),
+        action_store: action_store.clone(),
         hook_source_path,
         hook_search_hints,
     };
@@ -56,6 +62,15 @@ pub async fn start(
         }
     });
 
+    let action_tick = action_store.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            action_tick.tick().await;
+        }
+    });
+
     tokio::spawn(async move {
         axum::serve(
             listener,
@@ -68,7 +83,9 @@ pub async fn start(
         .ok();
     });
 
-    if load_lan_companion_enabled() {
+    let mdns = MdnsRegistrar::register(port).ok().flatten();
+
+    if lan_bind_enabled() {
         tracing::info!("vibe-core listening on http://0.0.0.0:{port} (LAN companion enabled)");
     } else {
         tracing::info!("vibe-core listening on http://127.0.0.1:{port}");
@@ -77,13 +94,15 @@ pub async fn start(
     Ok(RunningServer {
         port,
         store,
+        action_store,
         shutdown: shutdown_tx,
+        _mdns: mdns,
     })
 }
 
-/// 局域网看板启用时绑定全部接口，否则仅本机。
+/// 任一局域网伴侣开关启用时绑定全部接口，否则仅本机。
 fn bind_ip() -> IpAddr {
-    if load_lan_companion_enabled() {
+    if lan_bind_enabled() {
         IpAddr::from([0, 0, 0, 0])
     } else {
         IpAddr::from([127, 0, 0, 1])
@@ -103,22 +122,6 @@ async fn bind_port() -> Result<u16> {
     anyhow::bail!("could not bind port {start}..{}", start + MAX_PORT_TRIES - 1);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bind_ip_follows_lan_setting() {
-        // 默认关闭时应为本机地址（测试进程内读取 state.json，不修改磁盘）。
-        let ip = bind_ip();
-        if load_lan_companion_enabled() {
-            assert_eq!(ip, IpAddr::from([0, 0, 0, 0]));
-        } else {
-            assert_eq!(ip, IpAddr::from([127, 0, 0, 1]));
-        }
-    }
-}
-
 pub fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -126,4 +129,20 @@ pub fn init_tracing() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::state::{load_lan_companion_enabled, load_watch_companion_enabled};
+
+    #[test]
+    fn bind_ip_follows_lan_setting() {
+        let ip = bind_ip();
+        if load_lan_companion_enabled() || load_watch_companion_enabled() {
+            assert_eq!(ip, IpAddr::from([0, 0, 0, 0]));
+        } else {
+            assert_eq!(ip, IpAddr::from([127, 0, 0, 1]));
+        }
+    }
 }

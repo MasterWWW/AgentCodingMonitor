@@ -262,11 +262,11 @@ PC 在 **启动、LAN 启用、网卡/IP 变化** 时重新注册 mDNS。
 
 | 方法 | 路径 | LAN | 说明 |
 |------|------|-----|------|
-| GET | `/api/actions/pending` | token | 拉取未过期待处理动作 |
-| POST | `/api/actions/{id}/respond` | token | 提交用户选择 |
-| GET | `/api/stream` | token | 扩展事件：`action_created`、`action_resolved` |
+| GET | `/api/actions/pending` | `watch_companion.token` | 拉取未过期待处理动作 |
+| POST | `/api/actions/{id}/respond` | `watch_companion.token` | 提交用户选择 |
+| GET | `/api/stream` | `lan` 或 `watch` token | 扩展事件；手表端用 watch token |
 
-写接口安全模型与现有 LAN 看板一致：**非 loopback 的 POST 需 token**（扩展 `lan_guard`）。
+扩展 `lan_guard`：`/api/status`、`/api/stream` 接受 **任一** token；`/api/actions/*` 仅接受 `watch_companion.token`；`POST /api/events` 等仍仅 loopback。
 
 ### Executor（MVP 一步到位）
 
@@ -495,3 +495,15 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 | Executor MVP | **通知 + 剪贴板** 一步到位（`y`/`n`） |
 | 自动点 IDE | V2 `HookExecutor`，MVP 不做 |
 | 开关 | **`lan_companion` 与 `watch_companion` 两个独立开关**，独立 token |
+
+---
+
+## 实现进度（2026-06-27）
+
+| 组件 | 状态 |
+|------|------|
+| `crates/vibe-protocol` | ✅ 已落地 |
+| `vibe-core` action API + mDNS + `watch_companion` 配置 | ✅ 已落地 |
+| 桌面托盘：手表开关 / 配对二维码 / Executor（通知+剪贴板） | ✅ 已落地 |
+| `apps/bridge-android` | 📋 README 占位 |
+| `apps/watch-blueos` | 📋 README 占位 |
