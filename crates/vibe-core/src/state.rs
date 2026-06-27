@@ -50,6 +50,17 @@ pub struct LanCompanionConfig {
     pub token: Option<String>,
 }
 
+/// 手表伴侣配置（见 `docs/plans/watch-companion.md`）。
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WatchCompanionConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub token: Option<String>,
+    #[serde(default)]
+    pub device_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PersistedState {
     #[serde(default)]
@@ -62,6 +73,8 @@ pub struct PersistedState {
     pub display: Option<DisplayPreferences>,
     #[serde(default)]
     pub lan_companion: LanCompanionConfig,
+    #[serde(default)]
+    pub watch_companion: WatchCompanionConfig,
 }
 
 /// Default lite mode: on for macOS (transcript fallback), off elsewhere.
@@ -211,6 +224,99 @@ pub fn ensure_lan_token() -> anyhow::Result<String> {
 
 fn generate_lan_token() -> String {
     uuid::Uuid::new_v4().to_string().replace('-', "")
+}
+
+fn generate_device_id() -> String {
+    uuid::Uuid::new_v4()
+        .to_string()
+        .replace('-', "")
+        .chars()
+        .take(6)
+        .collect()
+}
+
+/// 任一局域网伴侣开关启用时绑定 `0.0.0.0`。
+pub fn lan_bind_enabled() -> bool {
+    load_lan_companion_enabled() || load_watch_companion_enabled()
+}
+
+/// 读取手表伴侣是否启用。
+pub fn load_watch_companion_enabled() -> bool {
+    load_state().watch_companion.enabled
+}
+
+/// 读取手表伴侣 token。
+pub fn load_watch_companion_token() -> Option<String> {
+    load_state().watch_companion.token.clone()
+}
+
+/// 读取手表伴侣 device_id（mDNS 实例后缀）。
+pub fn load_watch_device_id() -> Option<String> {
+    load_state().watch_companion.device_id.clone()
+}
+
+/// mDNS 服务实例名：`vibe-monitor-{device_id}._tcp.local`
+pub fn watch_service_name(device_id: &str) -> String {
+    format!("vibe-monitor-{device_id}._tcp.local")
+}
+
+/// 切换手表伴侣；启用时确保 token 与 device_id。
+pub fn write_watch_companion_enabled(enabled: bool) -> anyhow::Result<()> {
+    let mut s = load_state();
+    s.watch_companion.enabled = enabled;
+    if enabled {
+        if s.watch_companion.token.is_none() {
+            s.watch_companion.token = Some(generate_lan_token());
+        }
+        if s.watch_companion.device_id.is_none() {
+            s.watch_companion.device_id = Some(generate_device_id());
+        }
+    }
+    write_state(&s)
+}
+
+/// 确保手表 token 存在并返回。
+pub fn ensure_watch_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    if s.watch_companion.token.is_none() {
+        s.watch_companion.token = Some(generate_lan_token());
+        write_state(&s)?;
+    }
+    Ok(s.watch_companion.token.clone().unwrap())
+}
+
+/// 确保 device_id 存在并返回。
+pub fn ensure_device_id() -> anyhow::Result<String> {
+    let mut s = load_state();
+    if s.watch_companion.device_id.is_none() {
+        s.watch_companion.device_id = Some(generate_device_id());
+        write_state(&s)?;
+    }
+    Ok(s.watch_companion.device_id.clone().unwrap())
+}
+
+/// 轮换手表 token。
+pub fn rotate_watch_token() -> anyhow::Result<String> {
+    let mut s = load_state();
+    let token = generate_lan_token();
+    s.watch_companion.token = Some(token.clone());
+    write_state(&s)?;
+    Ok(token)
+}
+
+/// 扫码配对 JSON（`docs/plans/watch-companion.md`）。
+pub fn watch_pairing_payload(port: u16) -> anyhow::Result<serde_json::Value> {
+    let device_id = ensure_device_id()?;
+    let token = ensure_watch_token()?;
+    let service = watch_service_name(&device_id);
+    Ok(serde_json::json!({
+        "v": 1,
+        "device_id": device_id,
+        "service": service,
+        "host_fallback": null,
+        "port": port,
+        "token": token,
+    }))
 }
 
 /// HUD display: latest in-progress session, else latest session by activity, else health `last_seen`, else default.

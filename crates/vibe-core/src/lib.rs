@@ -1,4 +1,6 @@
+pub mod action;
 pub mod api;
+pub mod discovery;
 pub mod event;
 pub mod install;
 pub mod lan;
@@ -10,6 +12,7 @@ pub mod state;
 pub mod store;
 pub mod types;
 
+pub use action::{ActionError, ActionExecutorEvent, ActionStore};
 pub use server::{init_tracing, start, RunningServer};
 pub use store::SessionStore;
 pub use types::*;
