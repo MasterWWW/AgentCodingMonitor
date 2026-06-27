@@ -132,8 +132,8 @@ workspace/
 ### 原则
 
 - **不持久化 PC IP**（可作短期缓存，失效即丢）
-- **持久化**：`device_id`、`service_name`、`token`、`host_fallback`（可选）
-- token **不写入 mDNS TXT**（防局域网嗅探）；仅通过扫码交给手机
+- **持久化**：`device_id`、`service_name`、`watch_companion.token`、`host_fallback`（可选）
+- `watch_companion.token` **不写入 mDNS TXT**（防局域网嗅探）；仅通过扫码交给手机
 
 ### 主路径：mDNS 服务发现
 
@@ -166,7 +166,7 @@ PC 在 **启动、LAN 启用、网卡/IP 变化** 时重新注册 mDNS。
   "service": "vibe-monitor-a1b2c3._tcp.local",
   "host_fallback": "my-dev-pc.local",
   "port": 17392,
-  "token": "..."
+  "token": "<watch_companion.token>"
 }
 ```
 
@@ -304,9 +304,15 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 
 ### 桌面 UI（Tauri）
 
-- 托盘/设置：**启用手表伴侣**（复用 `lan_companion.enabled` 或独立开关，实现时二选一）
-- 展示 **配对二维码**（含 `device_id`、`service`、`token`）
-- 连接状态：是否有手机 SSE 订阅、最近回执
+托盘/设置提供 **两个独立开关**（互不替代）：
+
+| 开关 | `state.json` 字段 | 作用 |
+|------|------------------|------|
+| iPad / 手机看板 | `lan_companion.enabled` | 现有只读 `/mobile` 看板 |
+| 手表伴侣 | `watch_companion.enabled` | mDNS + 动作推送 + 回执写 API |
+
+- **手表伴侣** 启用时：展示 **配对二维码**（`device_id`、`service`、`watch_companion.token`）
+- 连接状态：是否有手机 SSE 订阅、最近回执、mDNS 是否已广播
 
 ---
 
@@ -369,15 +375,52 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 
 ---
 
+## 配置与开关（`state.json`）
+
+`lan_companion` 与 `watch_companion` **独立配置段、独立 token**，可任意组合：
+
+| `lan_companion` | `watch_companion` | 绑定地址 | mDNS | 能力 |
+|-----------------|-------------------|---------|------|------|
+| off | off | `127.0.0.1` | — | 仅本机 HUD + hook |
+| on | off | `0.0.0.0` | — | + 浏览器只读看板 |
+| off | on | `0.0.0.0` | ✅ | + 手表动作推送/回执 |
+| on | on | `0.0.0.0` | ✅ | 看板 + 手表同时可用 |
+
+```json
+{
+  "lan_companion": {
+    "enabled": false,
+    "token": "…"
+  },
+  "watch_companion": {
+    "enabled": false,
+    "token": "…",
+    "device_id": "a1b2c3"
+  }
+}
+```
+
+实现约定：
+
+- `bind_ip()`：`lan_companion.enabled || watch_companion.enabled` → `0.0.0.0`
+- mDNS 注册：仅 `watch_companion.enabled`
+- `device_id`：首次启用手表伴侣时生成，用于 mDNS 实例名 `vibe-monitor-{device_id}`
+- 切换任一开关后 **重载 `vibe-core` 监听**（与现有 LAN 看板行为一致）
+
+新增 `load_watch_companion()` / `write_watch_companion()` / `ensure_watch_token()` / `ensure_device_id()`（`state.rs`）。
+
+---
+
 ## 安全模型
 
 | 层级 | 措施 |
 |------|------|
 | 发现 | mDNS 仅广播 `device_id` + 端口，不含 token |
-| 鉴权 | 现有 `lan_companion.token`；`Authorization: Bearer` 或 query |
-| 写操作 | `POST respond` 需 token；动作 id 一次性 + TTL |
+| 看板鉴权 | `lan_companion.token`；只读路由 |
+| 手表鉴权 | `watch_companion.token`；读动作 + `POST respond` |
+| 写操作 | `POST /api/events`、`install-hooks` 仍 **仅 loopback**；`POST respond` 可用 watch token（LAN） |
 | 内容 | `redact_title` 过滤敏感字段 |
-| 范围 | 仅 RFC1918 / 链路本地；写接口不对公网开放 |
+| 范围 | 仅 RFC1918 / 链路本地 |
 
 ---
 
@@ -399,7 +442,7 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 | 1 | `vibe-protocol` crate + 类型测试 | Rust |
 | 2 | `vibe-core` action store + API + SSE 事件 | Rust |
 | 3 | `vibe-core` mDNS 注册 + 网卡变化重注册 | Rust |
-| 4 | 桌面配对二维码 + 伴侣开关 UI | TypeScript |
+| 4 | 桌面：`watch_companion` 开关 + 配对二维码（与 LAN 看板开关并列） | TypeScript |
 | 5 | Android：扫码配对 + mDNS + SSE 连接（日志验证） | Kotlin |
 | 6 | BlueOS：互联 POC + 确认页 UI | JavaScript |
 | 7 | 端到端 yes/no 回传 | 联调 |
@@ -425,10 +468,12 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 
 | 项 | LAN 看板 (`/mobile`) | 手表伴侣 |
 |----|---------------------|---------|
-| 用途 | 只读状态展示 | 可读 + **写回执** |
+| 用途 | 只读状态展示 | 动作推送 + **写回执** |
 | 客户端 | 浏览器 | 原生手机 + 手表 |
-| 寻址 | 当前为 IP URL | **mDNS + 扫码**（看板可后续复用 mDNS） |
-| 开关 | `lan_companion.enabled` | 依赖 LAN 绑定；实现时可共用开关 |
+| 寻址 | IP URL（现有） | **mDNS + 扫码** |
+| 开关 | `lan_companion.enabled` | `watch_companion.enabled`（**独立**） |
+| Token | `lan_companion.token` | `watch_companion.token`（**独立**） |
+| 绑定 LAN | 任一开关 on → `0.0.0.0` | 同上 |
 
 ---
 
@@ -449,7 +494,4 @@ MVP 注册 `CompositeExecutor(vec![Notify, Clipboard])`；V2 再追加或替换�
 | 连接 | 同 WiFi + mDNS，不做 Tailscale |
 | Executor MVP | **通知 + 剪贴板** 一步到位（`y`/`n`） |
 | 自动点 IDE | V2 `HookExecutor`，MVP 不做 |
-
-## 待定项（实现前确认）
-
-1. **开关模型**：手表伴侣是否与 `lan_companion` 共用同一开关，还是独立 `watch_companion.enabled`？
+| 开关 | **`lan_companion` 与 `watch_companion` 两个独立开关**，独立 token |
